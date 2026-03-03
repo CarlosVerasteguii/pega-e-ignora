@@ -1,46 +1,39 @@
 # Pega e Ignora (Desktop)
 
-A lightweight **desktop Markdown editor + live preview** built with **Tauri v2**, **Vite**, and **Toast UI Editor**.
+Editor de Markdown para escritorio: **pegas texto**, escribes notas y lo lees cómodo (**interlineado/espaciado/tamaño**) sin que te estorbe.
 
-The app is optimized for fast note-taking with:
+Construido con **Tauri v2**, **Vite** y **Toast UI Editor**.
 
-- A single-pane WYSIWYG experience (edit + rendered output in the same surface)
-- Sidebar outline (headings hierarchy)
-- Local “vault” storage (notes, scratch, history)
-- Dark mode + typography controls (font size, line height, paragraph spacing)
-- Optional spellcheck toggle
+## Features
 
----
+- Editor WYSIWYG en una sola vista (editar + ver render en el mismo lugar)
+- Sidebar con **Jerarquía** (outline por encabezados)
+- Secciones del sidebar colapsables (menos ruido)
+- Tema oscuro/claro
+- Controles de lectura: tamaño, interlineado, espaciado
+- Toggle de ortografía (para quitar subrayados cuando el texto mezcla idiomas)
+- Vault local (notas, scratch y recientes)
+- Sanitización básica de links inseguros
 
-## Project structure
+## Estructura del repo
 
-- `markdown-viewer/` — Tauri + frontend source code
-- `testsMDs/` — Markdown fixtures to validate rendering and outline behavior
-- `docs/` — Development notes (WSL/GitHub flow, etc.)
+- `markdown-viewer/` — código fuente (Tauri + frontend)
+- `testsMDs/` — fixtures de Markdown para probar render/outline
+- `docs/` — notas de desarrollo (flujo GitHub en WSL, roadmap)
 
----
+## Requisitos
 
-## Requirements
-
-### Development
-
-- Node.js (LTS recommended)
+- Node.js (LTS recomendado)
 - Rust (via `rustup`)
-- Windows build tools for Tauri on Windows (Visual Studio Build Tools / Windows SDK)
+- Build tools para Tauri en Windows (Visual Studio Build Tools / Windows SDK)
 
----
-
-## Run (dev)
+## Correr en dev
 
 ```bash
 cd markdown-viewer
 npm install
 npm run tauri dev
 ```
-
-Hot reload runs while `tauri dev` is active.
-
----
 
 ## Build (Windows)
 
@@ -50,26 +43,17 @@ npm install
 npm run tauri build
 ```
 
----
+## Dónde guarda datos (Vault)
 
-## Where the app stores data (Vault)
+Dentro de Documentos:
 
-The app stores data inside your Windows Documents folder:
-
-- Vault root: `Documentos/Pega e Ignora/`
-- Notes: `Documentos/Pega e Ignora/notes/`
+- Vault: `Documentos/Pega e Ignora/`
+- Notas: `Documentos/Pega e Ignora/notes/`
 - Scratch: `Documentos/Pega e Ignora/scratch.md`
-- Recent history: `Documentos/Pega e Ignora/history.json`
+- Historial: `Documentos/Pega e Ignora/history.json`
 
----
+Si ya usabas `Documentos/Markdown Viewer/`, la app te ofrece migrarlo al abrir.
 
-## Security notes
+## Contribuir
 
-- Links are sanitized to block unsafe protocols (e.g. `javascript:`).
-- This repo intentionally ignores local vault files and private notes via `.gitignore`.
-
----
-
-## Contributing
-
-See `CONTRIBUTING.md`.
+Ver `CONTRIBUTING.md`.
