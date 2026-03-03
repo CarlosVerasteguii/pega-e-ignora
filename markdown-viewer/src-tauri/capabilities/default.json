@@ -9,7 +9,9 @@
       "identifier": "opener:allow-open-path",
       "allow": [
         { "path": "$DOCUMENT/Markdown Viewer" },
-        { "path": "$DOCUMENT/Markdown Viewer/**" }
+        { "path": "$DOCUMENT/Markdown Viewer/**" },
+        { "path": "$DOCUMENT/Pega e Ignora" },
+        { "path": "$DOCUMENT/Pega e Ignora/**" }
       ]
     },
     "dialog:allow-open",
@@ -20,27 +22,40 @@
       "identifier": "fs:allow-exists",
       "allow": [
         { "path": "$DOCUMENT/Markdown Viewer" },
-        { "path": "$DOCUMENT/Markdown Viewer/**" }
+        { "path": "$DOCUMENT/Markdown Viewer/**" },
+        { "path": "$DOCUMENT/Pega e Ignora" },
+        { "path": "$DOCUMENT/Pega e Ignora/**" }
       ]
     },
     {
       "identifier": "fs:allow-mkdir",
       "allow": [
         { "path": "$DOCUMENT/Markdown Viewer" },
-        { "path": "$DOCUMENT/Markdown Viewer/**" }
+        { "path": "$DOCUMENT/Markdown Viewer/**" },
+        { "path": "$DOCUMENT/Pega e Ignora" },
+        { "path": "$DOCUMENT/Pega e Ignora/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-rename",
+      "allow": [
+        { "path": "$DOCUMENT/Markdown Viewer" },
+        { "path": "$DOCUMENT/Markdown Viewer/**" },
+        { "path": "$DOCUMENT/Pega e Ignora" },
+        { "path": "$DOCUMENT/Pega e Ignora/**" }
       ]
     },
     {
       "identifier": "fs:allow-read-dir",
-      "allow": [{ "path": "$DOCUMENT/Markdown Viewer/**" }]
+      "allow": [{ "path": "$DOCUMENT/Markdown Viewer/**" }, { "path": "$DOCUMENT/Pega e Ignora/**" }]
     },
     {
       "identifier": "fs:allow-read-text-file",
-      "allow": [{ "path": "$DOCUMENT/Markdown Viewer/**" }]
+      "allow": [{ "path": "$DOCUMENT/Markdown Viewer/**" }, { "path": "$DOCUMENT/Pega e Ignora/**" }]
     },
     {
       "identifier": "fs:allow-write-text-file",
-      "allow": [{ "path": "$DOCUMENT/Markdown Viewer/**" }]
+      "allow": [{ "path": "$DOCUMENT/Markdown Viewer/**" }, { "path": "$DOCUMENT/Pega e Ignora/**" }]
     }
   ]
 }
