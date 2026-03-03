@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Markdown Viewer</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+
+  <body>
+    <div id="app" class="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-title">Markdown Viewer</div>
+          <div id="status" class="brand-subtitle">Listo</div>
+        </div>
+
+        <div class="actions">
+          <button id="btn-new" type="button" title="Nuevo (Ctrl+N)">
+            Nuevo
+          </button>
+          <button id="btn-open" type="button" title="Abrir (Ctrl+O)">
+            Abrir
+          </button>
+          <button id="btn-save" type="button" title="Guardar (Ctrl+S)">
+            Guardar
+          </button>
+          <button
+            id="btn-save-as"
+            type="button"
+            title="Guardar como (Ctrl+Shift+S)"
+          >
+            Guardar como
+          </button>
+          <button id="btn-theme" type="button" title="Cambiar tema">
+            Modo oscuro
+          </button>
+          <button id="btn-spellcheck" type="button" title="Ortografía">
+            Ortografía: Sí
+          </button>
+          <button id="btn-open-vault" type="button" title="Abrir carpeta">
+            Carpeta
+          </button>
+        </div>
+      </header>
+
+      <aside class="sidebar">
+        <section class="sidebar-section sidebar-section-history">
+          <div class="sidebar-header">
+            <button
+              class="sidebar-section-toggle"
+              type="button"
+              data-section="history"
+              aria-controls="sidebar-history-content"
+              aria-expanded="true"
+              title="Mostrar/ocultar Historial"
+            >
+              <span class="sidebar-section-title">Historial</span>
+              <span class="sidebar-section-chevron" aria-hidden="true"></span>
+            </button>
+            <button id="btn-refresh-history" type="button" class="ghost">
+              Actualizar
+            </button>
+          </div>
+          <div id="sidebar-history-content" class="sidebar-content">
+            <ul id="history" class="history"></ul>
+          </div>
+        </section>
+
+        <section class="sidebar-section sidebar-section-outline">
+          <div class="sidebar-header">
+            <button
+              class="sidebar-section-toggle"
+              type="button"
+              data-section="outline"
+              aria-controls="sidebar-outline-content"
+              aria-expanded="true"
+              title="Mostrar/ocultar Jerarquía"
+            >
+              <span class="sidebar-section-title">Jerarquía</span>
+              <span class="sidebar-section-chevron" aria-hidden="true"></span>
+            </button>
+          </div>
+          <div id="sidebar-outline-content" class="sidebar-content">
+            <ul id="outline" class="outline"></ul>
+          </div>
+        </section>
+
+        <section class="sidebar-section sidebar-section-format">
+          <div class="sidebar-header">
+            <button
+              class="sidebar-section-toggle"
+              type="button"
+              data-section="format"
+              aria-controls="sidebar-format-content"
+              aria-expanded="true"
+              title="Mostrar/ocultar Formato"
+            >
+              <span class="sidebar-section-title">Formato</span>
+              <span class="sidebar-section-chevron" aria-hidden="true"></span>
+            </button>
+            <button id="btn-reset-typography" type="button" class="ghost">
+              Reset
+            </button>
+          </div>
+          <div id="sidebar-format-content" class="sidebar-content">
+            <div class="format-controls" role="group" aria-label="Formato">
+              <label class="format-control">
+                <span class="format-control-label">Tamaño</span>
+                <input
+                  id="typography-font-size"
+                  type="range"
+                  min="12"
+                  max="22"
+                  step="1"
+                />
+                <span
+                  id="typography-font-size-value"
+                  class="format-control-value"
+                  >—</span
+                >
+              </label>
+
+              <label class="format-control">
+                <span class="format-control-label">Interlineado</span>
+                <input
+                  id="typography-line-height"
+                  type="range"
+                  min="1.2"
+                  max="2.2"
+                  step="0.05"
+                />
+                <span
+                  id="typography-line-height-value"
+                  class="format-control-value"
+                  >—</span
+                >
+              </label>
+
+              <label class="format-control">
+                <span class="format-control-label">Espaciado</span>
+                <input
+                  id="typography-paragraph-spacing"
+                  type="range"
+                  min="0"
+                  max="0.6"
+                  step="0.02"
+                />
+                <span
+                  id="typography-paragraph-spacing-value"
+                  class="format-control-value"
+                  >—</span
+                >
+              </label>
+            </div>
+          </div>
+        </section>
+      </aside>
+
+      <main class="main">
+        <section class="pane pane-workspace">
+          <div class="pane-header">
+            <div class="pane-title">Markdown</div>
+            <div id="workspace-meta" class="pane-meta"></div>
+          </div>
+          <div class="workspace workspace-single">
+            <div id="editor" class="editor-host"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

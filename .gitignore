@@ -1,0 +1,32 @@
+# Local app data (vault)
+history.json
+scratch.md
+notes/
+
+# Codex/agent local state
+.agent/
+.agents/
+.claude/
+skills-lock.json
+
+# QA artifacts / local screenshots
+qa-*.png
+
+# Legacy/local vendor artifacts (not used by current app)
+vendor/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Tauri/Vite build artifacts
+markdown-viewer/node_modules/
+markdown-viewer/dist/
+markdown-viewer/src-tauri/target/
+markdown-viewer/src-tauri/gen/
+
+# If a root-level lockfile appears by accident
+/package-lock.json
