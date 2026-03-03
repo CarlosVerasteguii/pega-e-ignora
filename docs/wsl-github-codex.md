@@ -1,4 +1,4 @@
-# Project Context: GitHub desde Codex CLI en WSL (Markdown Viewer)
+# Project Context: GitHub desde Codex CLI en WSL (Pega e Ignora)
 
 Fecha: 2026-03-03
 

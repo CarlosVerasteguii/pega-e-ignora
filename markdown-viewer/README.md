@@ -1,4 +1,4 @@
-# Markdown Viewer (Windows Desktop)
+# Pega e Ignora (Windows Desktop)
 
 Editor + preview de Markdown en tema oscuro, hecho con Tauri (se construye como `.exe`/instalador en Windows).
 
@@ -17,10 +17,10 @@ Editor + preview de Markdown en tema oscuro, hecho con Tauri (se construye como 
 
 ## Dónde guarda todo
 
-- Vault: `Documentos/Markdown Viewer/`
-- Notas: `Documentos/Markdown Viewer/notes/`
-- Scratch: `Documentos/Markdown Viewer/scratch.md`
-- Historial: `Documentos/Markdown Viewer/history.json`
+- Vault: `Documentos/Pega e Ignora/`
+- Notas: `Documentos/Pega e Ignora/notes/`
+- Scratch: `Documentos/Pega e Ignora/scratch.md`
+- Historial: `Documentos/Pega e Ignora/history.json`
 
 ## Dev
 

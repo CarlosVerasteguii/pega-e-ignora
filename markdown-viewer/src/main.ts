@@ -3,7 +3,7 @@ import "./styles.css";
 import Editor from "@toast-ui/editor";
 
 import { join, documentDir } from "@tauri-apps/api/path";
-import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { exists, mkdir, readTextFile, rename, writeTextFile } from "@tauri-apps/plugin-fs";
 import { confirm, message, open as dialogOpen, save as dialogSave } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
 
@@ -527,7 +527,30 @@ function debounce<TArgs extends unknown[]>(
 
 async function getVaultPaths(): Promise<VaultPaths> {
   const docs = await documentDir();
-  const vaultDir = await join(docs, "Markdown Viewer");
+  const legacyVaultDir = await join(docs, "Markdown Viewer");
+  const vaultDirV2 = await join(docs, "Pega e Ignora");
+  let vaultDir = vaultDirV2;
+  if (!(await exists(vaultDirV2)) && (await exists(legacyVaultDir))) {
+    const shouldMigrate = await confirm(
+      `Detecté un vault anterior:\n\n${legacyVaultDir}\n\n¿Quieres moverlo a:\n\n${vaultDirV2}\n\n(Esto renombra la carpeta; no borra contenido)`,
+      {
+        kind: "info",
+        title: "Pega e Ignora",
+        okLabel: "Mover",
+        cancelLabel: "Mantener",
+      },
+    );
+    if (shouldMigrate) {
+      try {
+        await rename(legacyVaultDir, vaultDirV2);
+        vaultDir = vaultDirV2;
+      } catch {
+        vaultDir = legacyVaultDir;
+      }
+    } else {
+      vaultDir = legacyVaultDir;
+    }
+  }
   const notesDir = await join(vaultDir, "notes");
   const scratchPath = await join(vaultDir, "scratch.md");
   const historyPath = await join(vaultDir, "history.json");
@@ -917,7 +940,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   } catch (err) {
     await message(`No pude crear la carpeta del vault.\n\n${String(err)}`, {
       kind: "error",
-      title: "Markdown Viewer",
+      title: "Pega e Ignora",
     });
     return;
   }
@@ -1010,7 +1033,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         if (isDirty) {
           const ok = await confirm("Tienes cambios sin guardar. ¿Abrir igual?", {
             kind: "warning",
-            title: "Markdown Viewer",
+            title: "Pega e Ignora",
             okLabel: "Abrir",
             cancelLabel: "Cancelar",
           });
@@ -1105,7 +1128,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (!isInsideVault(path)) {
       await message(
         `Por ahora esta app solo abre/guarda dentro del vault:\n\n${vault.vaultDir}`,
-        { kind: "warning", title: "Markdown Viewer" },
+        { kind: "warning", title: "Pega e Ignora" },
       );
       return;
     }
@@ -1122,7 +1145,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     } catch (err) {
       await message(`No pude abrir el archivo.\n\n${String(err)}`, {
         kind: "error",
-        title: "Markdown Viewer",
+        title: "Pega e Ignora",
       });
     }
   };
@@ -1131,7 +1154,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (!isInsideVault(path)) {
       await message(
         `Por ahora esta app solo guarda dentro del vault:\n\n${vault.vaultDir}`,
-        { kind: "warning", title: "Markdown Viewer" },
+        { kind: "warning", title: "Pega e Ignora" },
       );
       return;
     }
@@ -1148,7 +1171,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     } catch (err) {
       await message(`No pude guardar el archivo.\n\n${String(err)}`, {
         kind: "error",
-        title: "Markdown Viewer",
+        title: "Pega e Ignora",
       });
     }
   };
@@ -1164,7 +1187,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (!isDirty) return true;
     return await confirm("Tienes cambios sin guardar. ¿Descartar cambios?", {
       kind: "warning",
-      title: "Markdown Viewer",
+      title: "Pega e Ignora",
       okLabel: "Descartar",
       cancelLabel: "Cancelar",
     });
@@ -1341,7 +1364,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       setEditorValue("");
     }
   } else {
-    setEditorValue(`# Markdown Viewer
+    setEditorValue(`# Pega e Ignora
 
 Esta vista es única: editas y ves el resultado renderizado en el mismo espacio.
 

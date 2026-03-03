@@ -1,4 +1,4 @@
-# Markdown Viewer (Desktop)
+# Pega e Ignora (Desktop)
 
 A lightweight **desktop Markdown editor + live preview** built with **Tauri v2**, **Vite**, and **Toast UI Editor**.
 
@@ -56,10 +56,10 @@ npm run tauri build
 
 The app stores data inside your Windows Documents folder:
 
-- Vault root: `Documentos/Markdown Viewer/`
-- Notes: `Documentos/Markdown Viewer/notes/`
-- Scratch: `Documentos/Markdown Viewer/scratch.md`
-- Recent history: `Documentos/Markdown Viewer/history.json`
+- Vault root: `Documentos/Pega e Ignora/`
+- Notes: `Documentos/Pega e Ignora/notes/`
+- Scratch: `Documentos/Pega e Ignora/scratch.md`
+- Recent history: `Documentos/Pega e Ignora/history.json`
 
 ---
 
@@ -73,4 +73,3 @@ The app stores data inside your Windows Documents folder:
 ## Contributing
 
 See `CONTRIBUTING.md`.
-
