@@ -6,6 +6,10 @@ import { join, documentDir } from "@tauri-apps/api/path";
 import { exists, mkdir, readTextFile, rename, writeTextFile } from "@tauri-apps/plugin-fs";
 import { confirm, message, open as dialogOpen, save as dialogSave } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
+import { openVaultExplorer } from "./features/vaultExplorer";
+import { createCommandPalette, type CommandPaletteAction } from "./ui/commandPalette";
+import { createFindReplace } from "./ui/findReplace";
+import { createToastHost } from "./ui/toast";
 
 type HistoryItem = {
   path: string;
@@ -31,6 +35,7 @@ const THEME_STORAGE_KEY = "markdown-viewer.theme";
 const WORKSPACE_ZOOM_STORAGE_KEY = "markdown-viewer.workspaceZoom";
 const TYPOGRAPHY_STORAGE_KEY = "markdown-viewer.typography";
 const SPELLCHECK_STORAGE_KEY = "markdown-viewer.spellcheck";
+const READ_MODE_STORAGE_KEY = "markdown-viewer.readMode";
 const SIDEBAR_SECTIONS_STORAGE_KEY = "markdown-viewer.sidebarSections";
 const MIN_WORKSPACE_ZOOM = 0.8;
 const MAX_WORKSPACE_ZOOM = 1.8;
@@ -591,6 +596,7 @@ function setText(el: HTMLElement | null, text: string): void {
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
+  const appEl = document.querySelector<HTMLElement>("#app");
   const statusEl = document.querySelector<HTMLElement>("#status");
   const workspaceMetaEl = document.querySelector<HTMLElement>("#workspace-meta");
   const editorEl = document.querySelector<HTMLElement>("#editor");
@@ -610,11 +616,13 @@ window.addEventListener("DOMContentLoaded", async () => {
   const btnSave = document.querySelector<HTMLButtonElement>("#btn-save");
   const btnSaveAs = document.querySelector<HTMLButtonElement>("#btn-save-as");
   const btnTheme = document.querySelector<HTMLButtonElement>("#btn-theme");
+  const btnReadMode = document.querySelector<HTMLButtonElement>("#btn-read-mode");
   const btnSpellcheck = document.querySelector<HTMLButtonElement>("#btn-spellcheck");
   const btnOpenVault = document.querySelector<HTMLButtonElement>("#btn-open-vault");
   const btnRefreshHistory = document.querySelector<HTMLButtonElement>("#btn-refresh-history");
 
   if (
+    !appEl ||
     !statusEl ||
     !workspaceMetaEl ||
     !editorEl ||
@@ -633,12 +641,15 @@ window.addEventListener("DOMContentLoaded", async () => {
     !btnSave ||
     !btnSaveAs ||
     !btnTheme ||
+    !btnReadMode ||
     !btnSpellcheck ||
     !btnOpenVault ||
     !btnRefreshHistory
   ) {
     return;
   }
+
+  const toasts = createToastHost();
 
   let currentTheme: AppTheme = getInitialTheme();
   const applyTheme = (theme: AppTheme) => {
@@ -649,6 +660,26 @@ window.addEventListener("DOMContentLoaded", async () => {
     btnTheme.title = theme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro";
   };
   applyTheme(currentTheme);
+
+  const readReadModeEnabled = (): boolean => {
+    const raw = window.localStorage.getItem(READ_MODE_STORAGE_KEY);
+    if (raw === "1") return true;
+    if (raw === "0") return false;
+    return false;
+  };
+
+  const writeReadModeEnabled = (enabled: boolean) => {
+    window.localStorage.setItem(READ_MODE_STORAGE_KEY, enabled ? "1" : "0");
+  };
+
+  const applyReadMode = (enabled: boolean) => {
+    appEl.dataset.readMode = enabled ? "true" : "false";
+    btnReadMode.textContent = enabled ? "Editar" : "Lectura";
+    btnReadMode.title = enabled ? "Salir de modo lectura" : "Entrar a modo lectura";
+  };
+
+  let readModeEnabled = readReadModeEnabled();
+  applyReadMode(readModeEnabled);
 
   const readSidebarSectionsState = (): SidebarSectionsState => {
     const raw = window.localStorage.getItem(SIDEBAR_SECTIONS_STORAGE_KEY);
@@ -893,6 +924,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     ],
   });
 
+  const findReplace = createFindReplace({ editor });
+
   const syncEditorDomEnhancements = () => {
     applySpellcheckToEditor(spellcheckEnabled);
     applyOrderedListStartFix();
@@ -908,7 +941,18 @@ window.addEventListener("DOMContentLoaded", async () => {
     writeSpellcheckEnabled(spellcheckEnabled);
     updateSpellcheckButton(spellcheckEnabled);
     syncEditorDomEnhancements();
-    setText(statusEl, spellcheckEnabled ? "Ortografía activada" : "Ortografía desactivada");
+    const msg = spellcheckEnabled ? "Ortografía activada" : "Ortografía desactivada";
+    setText(statusEl, msg);
+    toasts.show({ kind: "info", message: msg });
+  });
+
+  btnReadMode.addEventListener("click", () => {
+    readModeEnabled = !readModeEnabled;
+    writeReadModeEnabled(readModeEnabled);
+    applyReadMode(readModeEnabled);
+    const msg = readModeEnabled ? "Modo lectura" : "Modo edición";
+    setText(statusEl, msg);
+    toasts.show({ kind: "info", message: msg });
   });
 
   let suppressEditorChange = false;
@@ -978,6 +1022,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         event.stopPropagation();
         anchor.setAttribute("href", "#");
         updateStatus("Link bloqueado por seguridad.");
+        toasts.show({ kind: "warning", message: "Link bloqueado por seguridad." });
         return;
       }
 
@@ -1141,6 +1186,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       updateStatus(
         `Abierto: ${basename(path)}${hadUnsafeLinks ? " • links inseguros bloqueados (guarda para aplicar)" : ""}`,
       );
+      toasts.show({ kind: "info", message: `Abierto: ${basename(path)}` });
       await upsertHistory(path, inferTitle(markdown));
     } catch (err) {
       await message(`No pude abrir el archivo.\n\n${String(err)}`, {
@@ -1167,6 +1213,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       isDirty = false;
       updateMeta();
       updateStatus(`Guardado: ${basename(path)}${sanitized.changed ? " • links inseguros bloqueados" : ""}`);
+      toasts.show({ kind: "success", message: `Guardado: ${basename(path)}` });
       await upsertHistory(path, inferTitle(sanitized.markdown));
     } catch (err) {
       await message(`No pude guardar el archivo.\n\n${String(err)}`, {
@@ -1182,6 +1229,180 @@ window.addEventListener("DOMContentLoaded", async () => {
     const path = await join(vault.notesDir, filename);
     await saveToPath(path);
   };
+
+  const openVaultExplorerAndOpenNote = async () => {
+    const selected = await openVaultExplorer({
+      vaultDir: vault.vaultDir,
+      notesDir: vault.notesDir,
+      title: "Explorar notas",
+    });
+    if (!selected) return;
+    await openNote(selected);
+  };
+
+  const paletteActions: CommandPaletteAction[] = [
+    {
+      id: "file.new",
+      title: "Nuevo documento",
+      subtitle: "Limpiar editor",
+      shortcut: "Ctrl+N",
+      group: "Archivo",
+      keywords: ["nuevo", "limpiar"],
+    },
+    { id: "file.open", title: "Abrir…", subtitle: "Elegir un .md", shortcut: "Ctrl+O", group: "Archivo" },
+    { id: "file.save", title: "Guardar", subtitle: "Guardar cambios", shortcut: "Ctrl+S", group: "Archivo" },
+    {
+      id: "file.saveAs",
+      title: "Guardar como…",
+      subtitle: "Guardar en otra ruta",
+      shortcut: "Ctrl+Shift+S",
+      group: "Archivo",
+      keywords: ["exportar"],
+    },
+    {
+      id: "vault.explore",
+      title: "Explorar notas…",
+      subtitle: "Buscar y abrir dentro del vault",
+      group: "Vault",
+      keywords: ["vault", "notes", "notas"],
+    },
+    { id: "vault.folder", title: "Abrir carpeta del vault", subtitle: "Abrir en Explorer", group: "Vault" },
+    { id: "history.refresh", title: "Actualizar historial", group: "Vault", keywords: ["recientes"] },
+    { id: "view.theme", title: "Cambiar tema", subtitle: "Claro / Oscuro", group: "Vista" },
+    { id: "view.readMode", title: "Modo lectura", subtitle: "Ocultar sidebar", group: "Vista", keywords: ["lectura"] },
+    { id: "tools.spellcheck", title: "Ortografía", subtitle: "Mostrar/ocultar subrayados", group: "Herramientas" },
+    {
+      id: "tools.find",
+      title: "Buscar…",
+      subtitle: "Buscar en el documento",
+      shortcut: "Ctrl+F",
+      group: "Herramientas",
+      keywords: ["find", "buscar"],
+    },
+    {
+      id: "tools.replace",
+      title: "Reemplazar…",
+      subtitle: "Buscar y reemplazar",
+      shortcut: "Ctrl+H",
+      group: "Herramientas",
+      keywords: ["replace", "reemplazar"],
+    },
+  ];
+
+  const palette = createCommandPalette({
+    actions: paletteActions,
+    title: "Comandos",
+    placeholder: "Escribe para buscar…",
+    onRun: (actionId) => {
+      void (async () => {
+        if (actionId === "file.new") {
+          if (!(await maybeDiscardChanges())) return;
+          setEditorValue("");
+          currentPath = null;
+          isDirty = false;
+          updateMeta();
+          updateStatus("Nuevo documento");
+          toasts.show({ kind: "info", message: "Nuevo documento" });
+          return;
+        }
+
+        if (actionId === "file.open") {
+          if (!(await maybeDiscardChanges())) return;
+          const selection = await dialogOpen({
+            title: "Abrir Markdown",
+            defaultPath: vault.notesDir,
+            filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
+            multiple: false,
+            directory: false,
+          });
+          if (!selection) return;
+          const path = Array.isArray(selection) ? selection[0] : selection;
+          if (typeof path === "string") await openNote(path);
+          return;
+        }
+
+        if (actionId === "file.save") {
+          if (currentPath) {
+            await saveToPath(currentPath);
+          } else {
+            await saveNewNote();
+          }
+          return;
+        }
+
+        if (actionId === "file.saveAs") {
+          const savePath = await dialogSave({
+            title: "Guardar Markdown como…",
+            defaultPath: await join(vault.notesDir, `${slugify(inferTitle(getEditorValue()))}.md`),
+            filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
+          });
+          if (savePath) await saveToPath(savePath);
+          return;
+        }
+
+        if (actionId === "vault.explore") {
+          await openVaultExplorerAndOpenNote();
+          return;
+        }
+
+        if (actionId === "vault.folder") {
+          try {
+            await openPath(vault.notesDir);
+            toasts.show({ kind: "info", message: "Carpeta del vault abierta" });
+          } catch {
+            // ignore
+          }
+          return;
+        }
+
+        if (actionId === "history.refresh") {
+          history = await loadHistory(vault);
+          renderHistory();
+          updateStatus("Historial actualizado");
+          toasts.show({ kind: "info", message: "Historial actualizado" });
+          return;
+        }
+
+        if (actionId === "view.theme") {
+          const nextTheme: AppTheme = currentTheme === "light" ? "dark" : "light";
+          applyTheme(nextTheme);
+          updateStatus(nextTheme === "dark" ? "Tema oscuro" : "Tema claro");
+          toasts.show({ kind: "info", message: nextTheme === "dark" ? "Tema oscuro" : "Tema claro" });
+          return;
+        }
+
+        if (actionId === "view.readMode") {
+          readModeEnabled = !readModeEnabled;
+          writeReadModeEnabled(readModeEnabled);
+          applyReadMode(readModeEnabled);
+          updateStatus(readModeEnabled ? "Modo lectura" : "Modo edición");
+          toasts.show({ kind: "info", message: readModeEnabled ? "Modo lectura" : "Modo edición" });
+          return;
+        }
+
+        if (actionId === "tools.spellcheck") {
+          spellcheckEnabled = !spellcheckEnabled;
+          writeSpellcheckEnabled(spellcheckEnabled);
+          updateSpellcheckButton(spellcheckEnabled);
+          syncEditorDomEnhancements();
+          const msg = spellcheckEnabled ? "Ortografía activada" : "Ortografía desactivada";
+          setText(statusEl, msg);
+          toasts.show({ kind: "info", message: msg });
+          return;
+        }
+
+        if (actionId === "tools.find") {
+          findReplace.openFind();
+          return;
+        }
+
+        if (actionId === "tools.replace") {
+          findReplace.openReplace();
+          return;
+        }
+      })();
+    },
+  });
 
   const maybeDiscardChanges = async (): Promise<boolean> => {
     if (!isDirty) return true;
@@ -1247,7 +1468,34 @@ window.addEventListener("DOMContentLoaded", async () => {
   const shortcuts = (e: KeyboardEvent) => {
     const key = e.key.toLowerCase();
     const cmdOrCtrl = e.ctrlKey || e.metaKey;
+
+    if (palette.isOpen()) {
+      if (cmdOrCtrl && key === "k") {
+        e.preventDefault();
+        palette.toggle();
+      }
+      return;
+    }
+
     if (!cmdOrCtrl) return;
+
+    if (key === "f") {
+      e.preventDefault();
+      findReplace.openFind();
+      return;
+    }
+
+    if (key === "h") {
+      e.preventDefault();
+      findReplace.openReplace();
+      return;
+    }
+
+    if (key === "k") {
+      e.preventDefault();
+      palette.toggle();
+      return;
+    }
 
     if (key === "s") {
       e.preventDefault();
@@ -1296,6 +1544,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         isDirty = false;
         updateMeta();
         updateStatus("Nuevo documento");
+        toasts.show({ kind: "info", message: "Nuevo documento" });
       })();
     }
   };
@@ -1325,6 +1574,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   btnTheme.addEventListener("click", () => {
     const nextTheme: AppTheme = currentTheme === "light" ? "dark" : "light";
     applyTheme(nextTheme);
+    updateStatus(nextTheme === "dark" ? "Tema oscuro" : "Tema claro");
+    toasts.show({ kind: "info", message: nextTheme === "dark" ? "Tema oscuro" : "Tema claro" });
   });
 
   workspaceEl.addEventListener(
@@ -1346,6 +1597,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     history = await loadHistory(vault);
     renderHistory();
     updateStatus("Historial actualizado");
+    toasts.show({ kind: "info", message: "Historial actualizado" });
   });
 
   btnOpenVault.addEventListener("click", async () => {

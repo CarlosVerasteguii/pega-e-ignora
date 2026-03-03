@@ -22,6 +22,17 @@ Thumbs.db
 # Logs
 *.log
 
+# Env / secrets
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+
+# IDE
+.idea/
+.vscode/
+
 # Tauri/Vite build artifacts
 markdown-viewer/node_modules/
 markdown-viewer/dist/

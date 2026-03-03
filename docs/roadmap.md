@@ -2,24 +2,29 @@
 
 Este documento resume ideas para seguir mejorando **Pega e Ignora**. No son compromisos; es una lista priorizada para discutir.
 
+## Hecho
+
+- ✅ Command palette (Ctrl+K)
+- ✅ Búsqueda (Ctrl+F) + reemplazo (Ctrl+H)
+- ✅ Explorador de notas (in-app)
+- ✅ Modo lectura (oculta sidebar)
+- ✅ Toasts no intrusivos para acciones
+
 ## UX / Producto
 
-- **Command palette** (Ctrl+K): abrir, recientes, buscar, toggles (tema/ortografía), exportar.
-- **Búsqueda** en nota (Ctrl+F) + reemplazo (Ctrl+H).
 - **Recientes mejorado**: pin favorites, “abrir carpeta del archivo”, “copiar ruta”.
 - **Indicadores claros**: “Guardado hace Xs”, “sin guardar”, “autosave ON”.
 - **Atajos visibles**: tooltips consistentes + sección “Ayuda / Atajos”.
 
 ## Editor / Render
 
-- **Modo lectura**: ocultar toolbar y dejar solo contenido + navegación por headings.
 - **Export**: HTML/PDF/print friendly.
 - **Mejor manejo de paste**: normalizar bullets, arreglar indentación, convertir tabs→spaces, “paste as plain text”.
 - **Tablas**: scroll horizontal suave + “copiar como CSV”.
 
 ## Vault / Archivos
 
-- **Explorador de notas**: árbol de carpetas dentro del vault + crear/renombrar/mover.
+- **Explorador de notas**: renombrar/mover (hoy: crear + abrir).
 - **Tags** (frontmatter) + filtro rápido en sidebar.
 - **Backups**: snapshots por fecha, o “versiones” simples por archivo.
 
@@ -31,7 +36,6 @@ Este documento resume ideas para seguir mejorando **Pega e Ignora**. No son comp
 
 ## Micro-interacciones (micro-interactions)
 
-- **Toast no intrusivo** para “Guardado”, “Link bloqueado”, “Vault migrado”.
 - **Animaciones suaves**: colapsables, focus rings, pressed states (respetando `prefers-reduced-motion`).
 - **Estados vacíos** mejores (historial/jerarquía) con copy claro.
 
@@ -39,4 +43,3 @@ Este documento resume ideas para seguir mejorando **Pega e Ignora**. No son comp
 
 - **Smoke tests manuales** documentados usando `testsMDs/`.
 - **CI básico**: build lint/typecheck (si se agrega lint) y build Tauri (cuando sea viable).
-

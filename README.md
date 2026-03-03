@@ -10,9 +10,13 @@ Construido con **Tauri v2**, **Vite** y **Toast UI Editor**.
 - Sidebar con **Jerarquía** (outline por encabezados)
 - Secciones del sidebar colapsables (menos ruido)
 - Tema oscuro/claro
+- Command palette (`Ctrl+K`)
+- Buscar / reemplazar (`Ctrl+F` / `Ctrl+H`)
+- Modo lectura (oculta sidebar)
 - Controles de lectura: tamaño, interlineado, espaciado
 - Toggle de ortografía (para quitar subrayados cuando el texto mezcla idiomas)
 - Vault local (notas, scratch y recientes)
+- Explorador de notas (in-app)
 - Sanitización básica de links inseguros
 
 ## Estructura del repo

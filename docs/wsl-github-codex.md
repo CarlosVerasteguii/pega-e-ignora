@@ -9,7 +9,7 @@ Estandarizar cómo trabajar con GitHub desde Codex CLI en WSL (crear ramas, comm
 ## Alcance
 
 - Entorno: WSL
-- Proyecto local en Windows montado en: `/mnt/c/Users/veras/Documents/Markdown Viewer`
+- Proyecto local en Windows montado en (ejemplo): `/mnt/c/Users/<tu-usuario>/Documents/<carpeta-del-repo>`
 - App (Tauri + Vite) en: `markdown-viewer/`
 - Markdown de prueba en: `testsMDs/`
 - GitHub CLI disponible en Windows como:
@@ -32,7 +32,7 @@ Si este folder todavía **no** es un repo (no hay `.git/`), tienes 2 opciones:
 2) Inicializar git y agregar `origin` (necesitas la URL del repo):
 
 ```bash
-cd "/mnt/c/Users/veras/Documents/Markdown Viewer"
+cd "<repo-root>"
 git init
 git remote add origin https://github.com/<owner>/<repo>.git
 git checkout -b main
@@ -41,11 +41,11 @@ git checkout -b main
 Luego (ya con repo y remoto):
 
 ```bash
-cd "/mnt/c/Users/veras/Documents/Markdown Viewer"
+cd "<repo-root>"
 
 # 1) Identidad git (local al repo)
-git config user.name "Carlos Verastegui"
-git config user.email "CarlosVerasteguii@users.noreply.github.com"
+git config user.name "<Tu Nombre>"
+git config user.email "<tu-email@users.noreply.github.com>"
 
 # 2) Credenciales GitHub desde WSL usando gh.exe (Windows)
 git config credential.helper "!/mnt/c/Program\\ Files/GitHub\\ CLI/gh.exe auth git-credential"
@@ -61,7 +61,7 @@ git config credential.helper "!/mnt/c/Program\\ Files/GitHub\\ CLI/gh.exe auth g
 ### 1) Sincronizar `main`
 
 ```bash
-cd "/mnt/c/Users/veras/Documents/Markdown Viewer"
+cd "<repo-root>"
 git checkout main
 git pull origin main
 ```

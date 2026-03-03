@@ -13,7 +13,8 @@ Editor + preview de Markdown en tema oscuro, hecho con Tauri (se construye como 
 - Autosave a `scratch.md`
 - Guardado de notas en carpeta “vault” dentro de Documentos
 - Historial básico (recientes)
-- Atajo global (cuando la app está corriendo): `Ctrl+Alt+M` (toggle mostrar/ocultar)
+- Command palette: `Ctrl+K`
+- Modo lectura (oculta sidebar)
 
 ## Dónde guarda todo
 
