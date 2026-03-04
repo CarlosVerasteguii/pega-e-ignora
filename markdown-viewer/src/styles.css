@@ -18,6 +18,7 @@
   --accent-3: rgb(var(--accent-3-rgb));
   --accent-4: rgb(var(--accent-4-rgb));
   --danger: #b45656;
+  --danger-rgb: 180 86 86;
   --topbar-start: #f5ebde;
   --topbar-end: #f2e5d5;
   --button-bg: #f7efe5;
@@ -77,6 +78,7 @@
   --accent-3-rgb: 199 154 103;
   --accent-4-rgb: 176 127 78;
   --danger: #d17272;
+  --danger-rgb: 209 114 114;
   --topbar-start: #1a232d;
   --topbar-end: #141b23;
   --button-bg: #1b2430;
@@ -364,20 +366,14 @@ button.icon-only svg {
 }
 
 .history-row {
-  display: flex;
-  gap: 6px;
-  align-items: stretch;
-}
-
-.history-row .history-item {
-  flex: 1;
+  position: relative;
 }
 
 .history-item {
   border: 1px solid var(--border);
   background: var(--history-bg);
   border-radius: 12px;
-  padding: 10px 10px 9px;
+  padding: 10px 46px 9px 10px;
   cursor: pointer;
   text-align: left;
   width: 100%;
@@ -390,37 +386,44 @@ button.icon-only svg {
 }
 
 .history-delete {
-  width: 40px;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--history-bg);
-  color: var(--muted);
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgb(var(--danger-rgb) / 0.7);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   opacity: 0;
   pointer-events: none;
-  transform: translateY(0) scale(0.98);
-  transition: opacity 120ms ease, transform 120ms ease, border-color 120ms ease,
-    background-color 120ms ease, color 120ms ease;
+  transform: translateY(-1px) scale(0.96);
+  transition: opacity 120ms ease, transform 140ms ease, border-color 120ms ease,
+    background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
 }
 
 .history-row:hover .history-delete,
 .history-row:focus-within .history-delete {
   opacity: 1;
   pointer-events: auto;
-  transform: translateY(-1px) scale(1);
+  transform: translateY(0) scale(1);
+  background: rgb(var(--danger-rgb) / 0.08);
+  border-color: rgb(var(--danger-rgb) / 0.22);
 }
 
 .history-delete:hover {
-  border-color: var(--history-hover-border);
-  background: var(--history-hover-bg);
-  color: var(--text);
+  border-color: rgb(var(--danger-rgb) / 0.38);
+  background: rgb(var(--danger-rgb) / 0.14);
+  color: rgb(var(--danger-rgb) / 0.9);
+  box-shadow: 0 10px 20px rgb(0 0 0 / 0.08);
 }
 
 .history-delete:active {
-  transform: translateY(0) scale(0.99);
+  transform: translateY(1px) scale(0.98);
 }
 
 .history-delete svg {
