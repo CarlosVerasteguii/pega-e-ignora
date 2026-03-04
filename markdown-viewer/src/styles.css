@@ -583,7 +583,7 @@ button.icon-only svg {
 
 .palette-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -660,12 +660,6 @@ button.icon-only svg {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-@media (max-width: 560px) {
-  .palette-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1208,6 +1202,118 @@ button.icon-only svg {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.settings-section-title {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+}
+
+.settings-section-subtitle {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+}
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.theme-option {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  color: var(--text);
+  border-radius: 14px;
+  padding: 10px 10px;
+  cursor: pointer;
+  text-align: left;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.theme-option:hover {
+  border-color: var(--button-hover-border);
+  background: linear-gradient(180deg, var(--panel-2), var(--panel-3));
+  transform: translateY(-1px);
+}
+
+.theme-option:active {
+  transform: translateY(0) scale(0.99);
+}
+
+.theme-option[aria-checked="true"] {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 2px var(--surface-tint-soft);
+}
+
+.theme-option:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.theme-swatches {
+  display: inline-flex;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--editor-shell-bg);
+  border: 1px solid var(--border);
+}
+
+.theme-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  border: 1px solid rgb(0 0 0 / 0.08);
+  background: var(--sw-bg, var(--bg));
+}
+
+.theme-swatch:nth-child(2) {
+  background: var(--sw-panel, var(--panel));
+}
+
+.theme-swatch:nth-child(3) {
+  background: var(--sw-panel-3, var(--panel-3));
+}
+
+.theme-name {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .theme-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* Command Palette */

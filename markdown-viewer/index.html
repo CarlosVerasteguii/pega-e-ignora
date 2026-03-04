@@ -183,6 +183,26 @@
                 >
               </label>
             </div>
+
+            <div class="format-divider" role="separator" aria-hidden="true"></div>
+
+            <div class="palette-picker" role="group" aria-label="Paleta de acentos">
+              <div class="palette-picker-header">
+                <div class="palette-picker-title">Paleta</div>
+                <div
+                  id="accent-palette-selected-name"
+                  class="palette-picker-subtitle"
+                >
+                  —
+                </div>
+              </div>
+              <div
+                id="accent-palette-grid"
+                class="palette-grid"
+                role="radiogroup"
+                aria-label="Elegir paleta"
+              ></div>
+            </div>
           </div>
         </section>
       </aside>
@@ -233,18 +253,21 @@
           </button>
         </div>
         <div class="settings-body">
-          <div class="palette-picker" role="group" aria-label="Paleta de colores">
-            <div class="palette-picker-header">
-              <div class="palette-picker-title">Paleta</div>
-              <div id="palette-selected-name" class="palette-picker-subtitle">
+          <div class="settings-section" role="group" aria-label="Tema de la app">
+            <div class="settings-section-header">
+              <div class="settings-section-title">Tema de la app</div>
+              <div
+                id="app-theme-selected-name"
+                class="settings-section-subtitle"
+              >
                 —
               </div>
             </div>
             <div
-              id="palette-grid"
-              class="palette-grid"
+              id="app-theme-grid"
+              class="theme-grid"
               role="radiogroup"
-              aria-label="Elegir paleta"
+              aria-label="Elegir tema de la app"
             ></div>
           </div>
         </div>

@@ -25,7 +25,7 @@ type VaultPaths = {
 };
 
 type AppTheme = "light" | "dark";
-type AppPalette =
+type AccentPalette =
   | "caramelo"
   | "oceano"
   | "bosque"
@@ -37,18 +37,61 @@ type AppPalette =
   | "grafito"
   | "limon";
 
-type PaletteAccents = {
+type AccentPaletteAccents = {
   a1: string;
   a2: string;
   a3: string;
   a4: string;
 };
 
-type PaletteDefinition = {
-  id: AppPalette;
+type AccentPaletteDefinition = {
+  id: AccentPalette;
   name: string;
-  light: PaletteAccents;
-  dark: PaletteAccents;
+  light: AccentPaletteAccents;
+  dark: AccentPaletteAccents;
+};
+
+type AppThemePalette =
+  | "arena"
+  | "papel"
+  | "grafito"
+  | "tinta"
+  | "salvia"
+  | "ciruela"
+  | "oceano"
+  | "nordico"
+  | "solarizado"
+  | "carbon"
+  | "cobre"
+  | "noche"
+  | "lavanda"
+  | "oliva"
+  | "coral";
+
+type AppThemeSurfaces = {
+  bg: string;
+  panel: string;
+  panel2: string;
+  panel3: string;
+  text: string;
+  muted: string;
+  border: string;
+  shadow: string;
+  topbarStart: string;
+  topbarEnd: string;
+  buttonBg: string;
+  sidebarEnd: string;
+  historyBg: string;
+  editorShellBg: string;
+  editorMainBg: string;
+  codeBlockBg: string;
+};
+
+type AppThemePaletteDefinition = {
+  id: AppThemePalette;
+  name: string;
+  light: AppThemeSurfaces;
+  dark: AppThemeSurfaces;
 };
 type HeadingEntry = {
   level: number;
@@ -57,7 +100,8 @@ type HeadingEntry = {
 };
 
 const THEME_STORAGE_KEY = "markdown-viewer.theme";
-const PALETTE_STORAGE_KEY = "markdown-viewer.palette";
+const APP_THEME_STORAGE_KEY = "markdown-viewer.appTheme";
+const ACCENT_PALETTE_STORAGE_KEY = "markdown-viewer.palette";
 const WORKSPACE_ZOOM_STORAGE_KEY = "markdown-viewer.workspaceZoom";
 const TYPOGRAPHY_STORAGE_KEY = "markdown-viewer.typography";
 const SPELLCHECK_STORAGE_KEY = "markdown-viewer.spellcheck";
@@ -82,7 +126,7 @@ const DEFAULT_TYPOGRAPHY: TypographySettings = {
   paragraphSpacingEm: 0.22,
 };
 
-const PALETTES: PaletteDefinition[] = [
+const ACCENT_PALETTES: AccentPaletteDefinition[] = [
   {
     id: "caramelo",
     name: "Caramelo",
@@ -145,8 +189,614 @@ const PALETTES: PaletteDefinition[] = [
   },
 ];
 
-const PALETTE_BY_ID = new Map<AppPalette, PaletteDefinition>(PALETTES.map((p) => [p.id, p]));
-const DEFAULT_PALETTE: AppPalette = "caramelo";
+const ACCENT_PALETTE_BY_ID = new Map<AccentPalette, AccentPaletteDefinition>(ACCENT_PALETTES.map((p) => [p.id, p]));
+const DEFAULT_ACCENT_PALETTE: AccentPalette = "caramelo";
+
+const APP_THEME_PALETTES: AppThemePaletteDefinition[] = [
+  {
+    id: "arena",
+    name: "Arena",
+    light: {
+      bg: "#f2f2f0",
+      panel: "#f2e5d5",
+      panel2: "#f7efe5",
+      panel3: "#ead8c1",
+      text: "#32281f",
+      muted: "#7a6853",
+      border: "#d9c2a7",
+      shadow: "rgba(89, 67, 43, 0.14)",
+      topbarStart: "#f5ebde",
+      topbarEnd: "#f2e5d5",
+      buttonBg: "#f7efe5",
+      sidebarEnd: "#e3cdb3",
+      historyBg: "rgba(242, 242, 240, 0.65)",
+      editorShellBg: "rgba(247, 239, 229, 0.65)",
+      editorMainBg: "rgba(242, 242, 240, 0.5)",
+      codeBlockBg: "#f2f2f0",
+    },
+    dark: {
+      bg: "#10141a",
+      panel: "#182029",
+      panel2: "#141b23",
+      panel3: "#111820",
+      text: "#e9dfd0",
+      muted: "#b0a391",
+      border: "#2f3b49",
+      shadow: "rgba(0, 0, 0, 0.45)",
+      topbarStart: "#1a232d",
+      topbarEnd: "#141b23",
+      buttonBg: "#1b2430",
+      sidebarEnd: "#18212a",
+      historyBg: "rgba(16, 20, 26, 0.56)",
+      editorShellBg: "rgba(20, 27, 35, 0.75)",
+      editorMainBg: "rgba(16, 20, 26, 0.66)",
+      codeBlockBg: "#0f141b",
+    },
+  },
+  {
+    id: "papel",
+    name: "Papel",
+    light: {
+      bg: "#fbfbf8",
+      panel: "#ffffff",
+      panel2: "#f7f7f2",
+      panel3: "#efefe6",
+      text: "#24211c",
+      muted: "#6d665c",
+      border: "#d8d5cf",
+      shadow: "rgba(20, 20, 20, 0.1)",
+      topbarStart: "#ffffff",
+      topbarEnd: "#f7f7f2",
+      buttonBg: "#f7f7f2",
+      sidebarEnd: "#efefe6",
+      historyBg: "rgba(251, 251, 248, 0.75)",
+      editorShellBg: "rgba(255, 255, 255, 0.72)",
+      editorMainBg: "rgba(251, 251, 248, 0.58)",
+      codeBlockBg: "#fbfbf8",
+    },
+    dark: {
+      bg: "#0f0f10",
+      panel: "#17171a",
+      panel2: "#141417",
+      panel3: "#111114",
+      text: "#ece7df",
+      muted: "#bdb4a8",
+      border: "#2a2a2e",
+      shadow: "rgba(0, 0, 0, 0.52)",
+      topbarStart: "#19191d",
+      topbarEnd: "#141417",
+      buttonBg: "#1a1a1f",
+      sidebarEnd: "#17171a",
+      historyBg: "rgba(15, 15, 16, 0.6)",
+      editorShellBg: "rgba(20, 20, 23, 0.78)",
+      editorMainBg: "rgba(15, 15, 16, 0.68)",
+      codeBlockBg: "#0d0d0e",
+    },
+  },
+  {
+    id: "grafito",
+    name: "Grafito",
+    light: {
+      bg: "#eef1f5",
+      panel: "#e3e8ef",
+      panel2: "#f3f6fb",
+      panel3: "#d7dee8",
+      text: "#1f2a37",
+      muted: "#5b6776",
+      border: "#c2ccd9",
+      shadow: "rgba(17, 24, 39, 0.12)",
+      topbarStart: "#f3f6fb",
+      topbarEnd: "#e3e8ef",
+      buttonBg: "#f3f6fb",
+      sidebarEnd: "#d7dee8",
+      historyBg: "rgba(238, 241, 245, 0.72)",
+      editorShellBg: "rgba(243, 246, 251, 0.72)",
+      editorMainBg: "rgba(238, 241, 245, 0.58)",
+      codeBlockBg: "#eef1f5",
+    },
+    dark: {
+      bg: "#0c1116",
+      panel: "#121a22",
+      panel2: "#0f161d",
+      panel3: "#0d131a",
+      text: "#e7edf6",
+      muted: "#a6b2c1",
+      border: "#263242",
+      shadow: "rgba(0, 0, 0, 0.55)",
+      topbarStart: "#141e27",
+      topbarEnd: "#0f161d",
+      buttonBg: "#16202a",
+      sidebarEnd: "#121a22",
+      historyBg: "rgba(12, 17, 22, 0.6)",
+      editorShellBg: "rgba(15, 22, 29, 0.8)",
+      editorMainBg: "rgba(12, 17, 22, 0.7)",
+      codeBlockBg: "#0a1015",
+    },
+  },
+  {
+    id: "tinta",
+    name: "Tinta",
+    light: {
+      bg: "#eef3fb",
+      panel: "#e2ecff",
+      panel2: "#f3f7ff",
+      panel3: "#d3e0ff",
+      text: "#0f1a2a",
+      muted: "#4b5d76",
+      border: "#b6c9ea",
+      shadow: "rgba(15, 26, 42, 0.12)",
+      topbarStart: "#f3f7ff",
+      topbarEnd: "#e2ecff",
+      buttonBg: "#f3f7ff",
+      sidebarEnd: "#d3e0ff",
+      historyBg: "rgba(238, 243, 251, 0.72)",
+      editorShellBg: "rgba(243, 247, 255, 0.72)",
+      editorMainBg: "rgba(238, 243, 251, 0.58)",
+      codeBlockBg: "#eef3fb",
+    },
+    dark: {
+      bg: "#0b1020",
+      panel: "#111a33",
+      panel2: "#0f172e",
+      panel3: "#0d1428",
+      text: "#e8efff",
+      muted: "#a8b6d8",
+      border: "#293661",
+      shadow: "rgba(0, 0, 0, 0.58)",
+      topbarStart: "#131d39",
+      topbarEnd: "#0f172e",
+      buttonBg: "#142042",
+      sidebarEnd: "#111a33",
+      historyBg: "rgba(11, 16, 32, 0.6)",
+      editorShellBg: "rgba(15, 23, 46, 0.8)",
+      editorMainBg: "rgba(11, 16, 32, 0.7)",
+      codeBlockBg: "#090e1c",
+    },
+  },
+  {
+    id: "salvia",
+    name: "Salvia",
+    light: {
+      bg: "#eff6f1",
+      panel: "#e2f1e7",
+      panel2: "#f4fbf6",
+      panel3: "#d3e7da",
+      text: "#1b2a21",
+      muted: "#5b6e63",
+      border: "#b5cfbf",
+      shadow: "rgba(27, 42, 33, 0.12)",
+      topbarStart: "#f4fbf6",
+      topbarEnd: "#e2f1e7",
+      buttonBg: "#f4fbf6",
+      sidebarEnd: "#d3e7da",
+      historyBg: "rgba(239, 246, 241, 0.72)",
+      editorShellBg: "rgba(244, 251, 246, 0.72)",
+      editorMainBg: "rgba(239, 246, 241, 0.58)",
+      codeBlockBg: "#eff6f1",
+    },
+    dark: {
+      bg: "#0b1410",
+      panel: "#112019",
+      panel2: "#0f1b16",
+      panel3: "#0d1712",
+      text: "#e7f4ec",
+      muted: "#a7c3b4",
+      border: "#264033",
+      shadow: "rgba(0, 0, 0, 0.58)",
+      topbarStart: "#14261d",
+      topbarEnd: "#0f1b16",
+      buttonBg: "#172b21",
+      sidebarEnd: "#112019",
+      historyBg: "rgba(11, 20, 16, 0.6)",
+      editorShellBg: "rgba(15, 27, 22, 0.8)",
+      editorMainBg: "rgba(11, 20, 16, 0.7)",
+      codeBlockBg: "#09120d",
+    },
+  },
+  {
+    id: "ciruela",
+    name: "Ciruela",
+    light: {
+      bg: "#f5f1f8",
+      panel: "#efe4f6",
+      panel2: "#faf7fc",
+      panel3: "#e5d4f1",
+      text: "#2a1930",
+      muted: "#6f5a77",
+      border: "#d7c0e5",
+      shadow: "rgba(42, 25, 48, 0.12)",
+      topbarStart: "#faf7fc",
+      topbarEnd: "#efe4f6",
+      buttonBg: "#faf7fc",
+      sidebarEnd: "#e5d4f1",
+      historyBg: "rgba(245, 241, 248, 0.72)",
+      editorShellBg: "rgba(250, 247, 252, 0.72)",
+      editorMainBg: "rgba(245, 241, 248, 0.58)",
+      codeBlockBg: "#f5f1f8",
+    },
+    dark: {
+      bg: "#140b17",
+      panel: "#231328",
+      panel2: "#1c101f",
+      panel3: "#190d1c",
+      text: "#f4e9f8",
+      muted: "#c8b2d2",
+      border: "#3e2247",
+      shadow: "rgba(0, 0, 0, 0.6)",
+      topbarStart: "#28162f",
+      topbarEnd: "#1c101f",
+      buttonBg: "#2c1834",
+      sidebarEnd: "#231328",
+      historyBg: "rgba(20, 11, 23, 0.6)",
+      editorShellBg: "rgba(28, 16, 31, 0.82)",
+      editorMainBg: "rgba(20, 11, 23, 0.72)",
+      codeBlockBg: "#120914",
+    },
+  },
+  {
+    id: "oceano",
+    name: "Oceano",
+    light: {
+      bg: "#edf7f8",
+      panel: "#dff1f3",
+      panel2: "#f5fcfd",
+      panel3: "#cfe7ea",
+      text: "#102a2c",
+      muted: "#5a7476",
+      border: "#b5d6db",
+      shadow: "rgba(16, 42, 44, 0.12)",
+      topbarStart: "#f5fcfd",
+      topbarEnd: "#dff1f3",
+      buttonBg: "#f5fcfd",
+      sidebarEnd: "#cfe7ea",
+      historyBg: "rgba(237, 247, 248, 0.72)",
+      editorShellBg: "rgba(245, 252, 253, 0.72)",
+      editorMainBg: "rgba(237, 247, 248, 0.58)",
+      codeBlockBg: "#edf7f8",
+    },
+    dark: {
+      bg: "#081517",
+      panel: "#0e2326",
+      panel2: "#0b1d20",
+      panel3: "#0a191b",
+      text: "#e5f7f8",
+      muted: "#a8c9cd",
+      border: "#224146",
+      shadow: "rgba(0, 0, 0, 0.6)",
+      topbarStart: "#10292d",
+      topbarEnd: "#0b1d20",
+      buttonBg: "#123136",
+      sidebarEnd: "#0e2326",
+      historyBg: "rgba(8, 21, 23, 0.6)",
+      editorShellBg: "rgba(11, 29, 32, 0.82)",
+      editorMainBg: "rgba(8, 21, 23, 0.72)",
+      codeBlockBg: "#071214",
+    },
+  },
+  {
+    id: "nordico",
+    name: "Nordico",
+    light: {
+      bg: "#eef2f6",
+      panel: "#e3e9f1",
+      panel2: "#f6f8fb",
+      panel3: "#d5dde8",
+      text: "#2e3440",
+      muted: "#4c566a",
+      border: "#c1cad8",
+      shadow: "rgba(46, 52, 64, 0.12)",
+      topbarStart: "#f6f8fb",
+      topbarEnd: "#e3e9f1",
+      buttonBg: "#f6f8fb",
+      sidebarEnd: "#d5dde8",
+      historyBg: "rgba(238, 242, 246, 0.74)",
+      editorShellBg: "rgba(246, 248, 251, 0.74)",
+      editorMainBg: "rgba(238, 242, 246, 0.6)",
+      codeBlockBg: "#eef2f6",
+    },
+    dark: {
+      bg: "#141923",
+      panel: "#1f2533",
+      panel2: "#1a2030",
+      panel3: "#171d2b",
+      text: "#eceff4",
+      muted: "#a3b1c2",
+      border: "#2f3a50",
+      shadow: "rgba(0, 0, 0, 0.6)",
+      topbarStart: "#212a3b",
+      topbarEnd: "#1a2030",
+      buttonBg: "#232c3f",
+      sidebarEnd: "#1f2533",
+      historyBg: "rgba(20, 25, 35, 0.62)",
+      editorShellBg: "rgba(26, 32, 48, 0.82)",
+      editorMainBg: "rgba(20, 25, 35, 0.72)",
+      codeBlockBg: "#101621",
+    },
+  },
+  {
+    id: "solarizado",
+    name: "Solarizado",
+    light: {
+      bg: "#fdf6e3",
+      panel: "#eee8d5",
+      panel2: "#fffaf0",
+      panel3: "#e3ddc9",
+      text: "#3b4b52",
+      muted: "#6b7c82",
+      border: "#d6cfb9",
+      shadow: "rgba(59, 75, 82, 0.12)",
+      topbarStart: "#fffaf0",
+      topbarEnd: "#eee8d5",
+      buttonBg: "#fffaf0",
+      sidebarEnd: "#e3ddc9",
+      historyBg: "rgba(253, 246, 227, 0.76)",
+      editorShellBg: "rgba(255, 250, 240, 0.74)",
+      editorMainBg: "rgba(253, 246, 227, 0.62)",
+      codeBlockBg: "#fdf6e3",
+    },
+    dark: {
+      bg: "#002b36",
+      panel: "#073642",
+      panel2: "#032e38",
+      panel3: "#022a33",
+      text: "#e5e0d2",
+      muted: "#93a1a1",
+      border: "#1b4b55",
+      shadow: "rgba(0, 0, 0, 0.65)",
+      topbarStart: "#0a3b47",
+      topbarEnd: "#032e38",
+      buttonBg: "#0a3b47",
+      sidebarEnd: "#073642",
+      historyBg: "rgba(0, 43, 54, 0.6)",
+      editorShellBg: "rgba(3, 46, 56, 0.84)",
+      editorMainBg: "rgba(0, 43, 54, 0.72)",
+      codeBlockBg: "#001f27",
+    },
+  },
+  {
+    id: "carbon",
+    name: "Carbon",
+    light: {
+      bg: "#f5f6f8",
+      panel: "#e9edf2",
+      panel2: "#f8fafc",
+      panel3: "#dbe2eb",
+      text: "#161b22",
+      muted: "#57606a",
+      border: "#c8d1dc",
+      shadow: "rgba(22, 27, 34, 0.12)",
+      topbarStart: "#f8fafc",
+      topbarEnd: "#e9edf2",
+      buttonBg: "#f8fafc",
+      sidebarEnd: "#dbe2eb",
+      historyBg: "rgba(245, 246, 248, 0.74)",
+      editorShellBg: "rgba(248, 250, 252, 0.74)",
+      editorMainBg: "rgba(245, 246, 248, 0.6)",
+      codeBlockBg: "#f5f6f8",
+    },
+    dark: {
+      bg: "#0b0c0f",
+      panel: "#12141a",
+      panel2: "#0f1116",
+      panel3: "#0d0e12",
+      text: "#e6edf3",
+      muted: "#9aa4ad",
+      border: "#242833",
+      shadow: "rgba(0, 0, 0, 0.7)",
+      topbarStart: "#141822",
+      topbarEnd: "#0f1116",
+      buttonBg: "#161b26",
+      sidebarEnd: "#12141a",
+      historyBg: "rgba(11, 12, 15, 0.64)",
+      editorShellBg: "rgba(15, 17, 22, 0.84)",
+      editorMainBg: "rgba(11, 12, 15, 0.74)",
+      codeBlockBg: "#090a0d",
+    },
+  },
+  {
+    id: "cobre",
+    name: "Cobre",
+    light: {
+      bg: "#f7f2ec",
+      panel: "#f1e2d2",
+      panel2: "#fbf6f1",
+      panel3: "#e8d2bd",
+      text: "#3a2418",
+      muted: "#7a5f4f",
+      border: "#d8bda6",
+      shadow: "rgba(58, 36, 24, 0.12)",
+      topbarStart: "#fbf6f1",
+      topbarEnd: "#f1e2d2",
+      buttonBg: "#fbf6f1",
+      sidebarEnd: "#e8d2bd",
+      historyBg: "rgba(247, 242, 236, 0.74)",
+      editorShellBg: "rgba(251, 246, 241, 0.74)",
+      editorMainBg: "rgba(247, 242, 236, 0.6)",
+      codeBlockBg: "#f7f2ec",
+    },
+    dark: {
+      bg: "#120c0a",
+      panel: "#1d1411",
+      panel2: "#17100d",
+      panel3: "#140e0c",
+      text: "#f4e6d7",
+      muted: "#c9b3a3",
+      border: "#3a2b23",
+      shadow: "rgba(0, 0, 0, 0.65)",
+      topbarStart: "#211714",
+      topbarEnd: "#17100d",
+      buttonBg: "#251a16",
+      sidebarEnd: "#1d1411",
+      historyBg: "rgba(18, 12, 10, 0.62)",
+      editorShellBg: "rgba(23, 16, 13, 0.84)",
+      editorMainBg: "rgba(18, 12, 10, 0.72)",
+      codeBlockBg: "#0e0907",
+    },
+  },
+  {
+    id: "noche",
+    name: "Noche",
+    light: {
+      bg: "#eef2f8",
+      panel: "#e1e7f5",
+      panel2: "#f4f6fc",
+      panel3: "#d0d9ee",
+      text: "#0b1630",
+      muted: "#4a607e",
+      border: "#b3c3e0",
+      shadow: "rgba(11, 22, 48, 0.12)",
+      topbarStart: "#f4f6fc",
+      topbarEnd: "#e1e7f5",
+      buttonBg: "#f4f6fc",
+      sidebarEnd: "#d0d9ee",
+      historyBg: "rgba(238, 242, 248, 0.74)",
+      editorShellBg: "rgba(244, 246, 252, 0.74)",
+      editorMainBg: "rgba(238, 242, 248, 0.6)",
+      codeBlockBg: "#eef2f8",
+    },
+    dark: {
+      bg: "#050a16",
+      panel: "#0b1426",
+      panel2: "#081022",
+      panel3: "#060c1b",
+      text: "#e7eefc",
+      muted: "#9fb3d7",
+      border: "#1d2e53",
+      shadow: "rgba(0, 0, 0, 0.72)",
+      topbarStart: "#0d1830",
+      topbarEnd: "#081022",
+      buttonBg: "#101e3a",
+      sidebarEnd: "#0b1426",
+      historyBg: "rgba(5, 10, 22, 0.64)",
+      editorShellBg: "rgba(8, 16, 34, 0.86)",
+      editorMainBg: "rgba(5, 10, 22, 0.74)",
+      codeBlockBg: "#040815",
+    },
+  },
+  {
+    id: "lavanda",
+    name: "Lavanda",
+    light: {
+      bg: "#f6f3fb",
+      panel: "#efe7fa",
+      panel2: "#faf7fe",
+      panel3: "#e3d6f3",
+      text: "#24182d",
+      muted: "#6e5a7a",
+      border: "#d3c1e2",
+      shadow: "rgba(36, 24, 45, 0.12)",
+      topbarStart: "#faf7fe",
+      topbarEnd: "#efe7fa",
+      buttonBg: "#faf7fe",
+      sidebarEnd: "#e3d6f3",
+      historyBg: "rgba(246, 243, 251, 0.74)",
+      editorShellBg: "rgba(250, 247, 254, 0.74)",
+      editorMainBg: "rgba(246, 243, 251, 0.6)",
+      codeBlockBg: "#f6f3fb",
+    },
+    dark: {
+      bg: "#0f0a14",
+      panel: "#1a1023",
+      panel2: "#140c1c",
+      panel3: "#120a18",
+      text: "#f2e9fb",
+      muted: "#c7b2d8",
+      border: "#352047",
+      shadow: "rgba(0, 0, 0, 0.68)",
+      topbarStart: "#1f132a",
+      topbarEnd: "#140c1c",
+      buttonBg: "#241633",
+      sidebarEnd: "#1a1023",
+      historyBg: "rgba(15, 10, 20, 0.62)",
+      editorShellBg: "rgba(20, 12, 28, 0.85)",
+      editorMainBg: "rgba(15, 10, 20, 0.74)",
+      codeBlockBg: "#0c070f",
+    },
+  },
+  {
+    id: "oliva",
+    name: "Oliva",
+    light: {
+      bg: "#f6f6e9",
+      panel: "#eef0d4",
+      panel2: "#fbfcee",
+      panel3: "#dde2b8",
+      text: "#2a2a18",
+      muted: "#76724f",
+      border: "#c9cd9e",
+      shadow: "rgba(42, 42, 24, 0.12)",
+      topbarStart: "#fbfcee",
+      topbarEnd: "#eef0d4",
+      buttonBg: "#fbfcee",
+      sidebarEnd: "#dde2b8",
+      historyBg: "rgba(246, 246, 233, 0.74)",
+      editorShellBg: "rgba(251, 252, 238, 0.74)",
+      editorMainBg: "rgba(246, 246, 233, 0.6)",
+      codeBlockBg: "#f6f6e9",
+    },
+    dark: {
+      bg: "#141407",
+      panel: "#20200c",
+      panel2: "#1b1b0a",
+      panel3: "#171708",
+      text: "#f2f2d6",
+      muted: "#c5c39d",
+      border: "#3a3a1a",
+      shadow: "rgba(0, 0, 0, 0.68)",
+      topbarStart: "#24240f",
+      topbarEnd: "#1b1b0a",
+      buttonBg: "#2b2b12",
+      sidebarEnd: "#20200c",
+      historyBg: "rgba(20, 20, 7, 0.64)",
+      editorShellBg: "rgba(27, 27, 10, 0.86)",
+      editorMainBg: "rgba(20, 20, 7, 0.74)",
+      codeBlockBg: "#0f0f05",
+    },
+  },
+  {
+    id: "coral",
+    name: "Coral",
+    light: {
+      bg: "#fff1f0",
+      panel: "#ffe3dc",
+      panel2: "#fff6f4",
+      panel3: "#ffd2c8",
+      text: "#3a1d18",
+      muted: "#7a5953",
+      border: "#e6b8ae",
+      shadow: "rgba(58, 29, 24, 0.12)",
+      topbarStart: "#fff6f4",
+      topbarEnd: "#ffe3dc",
+      buttonBg: "#fff6f4",
+      sidebarEnd: "#ffd2c8",
+      historyBg: "rgba(255, 241, 240, 0.74)",
+      editorShellBg: "rgba(255, 246, 244, 0.74)",
+      editorMainBg: "rgba(255, 241, 240, 0.6)",
+      codeBlockBg: "#fff1f0",
+    },
+    dark: {
+      bg: "#160a0b",
+      panel: "#241012",
+      panel2: "#1d0d0f",
+      panel3: "#190b0c",
+      text: "#f8e6e4",
+      muted: "#d0b0ac",
+      border: "#3d1e21",
+      shadow: "rgba(0, 0, 0, 0.7)",
+      topbarStart: "#2a1416",
+      topbarEnd: "#1d0d0f",
+      buttonBg: "#32181b",
+      sidebarEnd: "#241012",
+      historyBg: "rgba(22, 10, 11, 0.64)",
+      editorShellBg: "rgba(29, 13, 15, 0.86)",
+      editorMainBg: "rgba(22, 10, 11, 0.74)",
+      codeBlockBg: "#120607",
+    },
+  },
+];
+
+const APP_THEME_BY_ID = new Map<AppThemePalette, AppThemePaletteDefinition>(APP_THEME_PALETTES.map((p) => [p.id, p]));
+const DEFAULT_APP_THEME: AppThemePalette = "arena";
 
 function basename(path: string): string {
   return path.replace(/^.*[\\/]/, "");
@@ -202,14 +852,24 @@ function getStoredTheme(): AppTheme | null {
   return stored === "light" || stored === "dark" ? stored : null;
 }
 
-function isAppPalette(value: string | null): value is AppPalette {
+function isAccentPalette(value: string | null): value is AccentPalette {
   if (!value) return false;
-  return PALETTE_BY_ID.has(value as AppPalette);
+  return ACCENT_PALETTE_BY_ID.has(value as AccentPalette);
 }
 
-function getStoredPalette(): AppPalette | null {
-  const stored = window.localStorage.getItem(PALETTE_STORAGE_KEY);
-  return isAppPalette(stored) ? stored : null;
+function getStoredAccentPalette(): AccentPalette | null {
+  const stored = window.localStorage.getItem(ACCENT_PALETTE_STORAGE_KEY);
+  return isAccentPalette(stored) ? stored : null;
+}
+
+function isAppThemePalette(value: string | null): value is AppThemePalette {
+  if (!value) return false;
+  return APP_THEME_BY_ID.has(value as AppThemePalette);
+}
+
+function getStoredAppThemePalette(): AppThemePalette | null {
+  const stored = window.localStorage.getItem(APP_THEME_STORAGE_KEY);
+  return isAppThemePalette(stored) ? stored : null;
 }
 
 function getInitialTheme(): AppTheme {
@@ -218,10 +878,16 @@ function getInitialTheme(): AppTheme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-function getInitialPalette(): AppPalette {
-  const storedPalette = getStoredPalette();
+function getInitialAccentPalette(): AccentPalette {
+  const storedPalette = getStoredAccentPalette();
   if (storedPalette) return storedPalette;
-  return DEFAULT_PALETTE;
+  return DEFAULT_ACCENT_PALETTE;
+}
+
+function getInitialAppThemePalette(): AppThemePalette {
+  const stored = getStoredAppThemePalette();
+  if (stored) return stored;
+  return DEFAULT_APP_THEME;
 }
 
 function looksLikeMarkdown(text: string): boolean {
@@ -730,8 +1396,10 @@ window.addEventListener("DOMContentLoaded", async () => {
   const typographyLineHeightValue = document.querySelector<HTMLElement>("#typography-line-height-value");
   const typographyParagraphSpacing = document.querySelector<HTMLInputElement>("#typography-paragraph-spacing");
   const typographyParagraphSpacingValue = document.querySelector<HTMLElement>("#typography-paragraph-spacing-value");
-  const paletteGrid = document.querySelector<HTMLElement>("#palette-grid");
-  const paletteSelectedName = document.querySelector<HTMLElement>("#palette-selected-name");
+  const accentPaletteGrid = document.querySelector<HTMLElement>("#accent-palette-grid");
+  const accentPaletteSelectedName = document.querySelector<HTMLElement>("#accent-palette-selected-name");
+  const appThemeGrid = document.querySelector<HTMLElement>("#app-theme-grid");
+  const appThemeSelectedName = document.querySelector<HTMLElement>("#app-theme-selected-name");
 
   const btnNew = document.querySelector<HTMLButtonElement>("#btn-new");
   const btnOpen = document.querySelector<HTMLButtonElement>("#btn-open");
@@ -761,8 +1429,10 @@ window.addEventListener("DOMContentLoaded", async () => {
     !typographyLineHeightValue ||
     !typographyParagraphSpacing ||
     !typographyParagraphSpacingValue ||
-    !paletteGrid ||
-    !paletteSelectedName ||
+    !accentPaletteGrid ||
+    !accentPaletteSelectedName ||
+    !appThemeGrid ||
+    !appThemeSelectedName ||
     !btnNew ||
     !btnOpen ||
     !btnSave ||
@@ -783,27 +1453,55 @@ window.addEventListener("DOMContentLoaded", async () => {
   const updateStatus = (text: string) => setText(statusEl, text);
 
   let currentTheme: AppTheme = getInitialTheme();
-  let currentPalette: AppPalette = getInitialPalette();
-  const paletteButtons = new Map<AppPalette, HTMLButtonElement>();
+  let currentAccentPalette: AccentPalette = getInitialAccentPalette();
+  let currentAppTheme: AppThemePalette = getInitialAppThemePalette();
 
-  const applyPalette = (palette: AppPalette, theme: AppTheme) => {
-    const def = PALETTE_BY_ID.get(palette) ?? PALETTE_BY_ID.get(DEFAULT_PALETTE);
+  const accentPaletteButtons = new Map<AccentPalette, HTMLButtonElement>();
+  const appThemeButtons = new Map<AppThemePalette, HTMLButtonElement>();
+
+  const applyAccentPalette = (palette: AccentPalette, theme: AppTheme) => {
+    const def = ACCENT_PALETTE_BY_ID.get(palette) ?? ACCENT_PALETTE_BY_ID.get(DEFAULT_ACCENT_PALETTE);
     if (!def) return;
     const set = theme === "dark" ? def.dark : def.light;
     const root = document.documentElement;
-    root.setAttribute("data-palette", def.id);
+    root.setAttribute("data-accent-palette", def.id);
     root.style.setProperty("--accent-1-rgb", set.a1);
     root.style.setProperty("--accent-2-rgb", set.a2);
     root.style.setProperty("--accent-3-rgb", set.a3);
     root.style.setProperty("--accent-4-rgb", set.a4);
   };
 
-  const syncPalettePicker = () => {
-    const active = PALETTE_BY_ID.get(currentPalette) ?? PALETTE_BY_ID.get(DEFAULT_PALETTE);
-    if (active) paletteSelectedName.textContent = active.name;
+  const applyAppThemePalette = (palette: AppThemePalette, theme: AppTheme) => {
+    const def = APP_THEME_BY_ID.get(palette) ?? APP_THEME_BY_ID.get(DEFAULT_APP_THEME);
+    if (!def) return;
+    const set = theme === "dark" ? def.dark : def.light;
+    const root = document.documentElement;
+    root.setAttribute("data-app-theme", def.id);
+    root.style.setProperty("--bg", set.bg);
+    root.style.setProperty("--panel", set.panel);
+    root.style.setProperty("--panel-2", set.panel2);
+    root.style.setProperty("--panel-3", set.panel3);
+    root.style.setProperty("--text", set.text);
+    root.style.setProperty("--muted", set.muted);
+    root.style.setProperty("--border", set.border);
+    root.style.setProperty("--shadow", set.shadow);
+    root.style.setProperty("--topbar-start", set.topbarStart);
+    root.style.setProperty("--topbar-end", set.topbarEnd);
+    root.style.setProperty("--button-bg", set.buttonBg);
+    root.style.setProperty("--sidebar-end", set.sidebarEnd);
+    root.style.setProperty("--history-bg", set.historyBg);
+    root.style.setProperty("--editor-shell-bg", set.editorShellBg);
+    root.style.setProperty("--editor-main-bg", set.editorMainBg);
+    root.style.setProperty("--code-block-bg", set.codeBlockBg);
+  };
 
-    for (const def of PALETTES) {
-      const button = paletteButtons.get(def.id);
+  const syncAccentPalettePicker = () => {
+    const active =
+      ACCENT_PALETTE_BY_ID.get(currentAccentPalette) ?? ACCENT_PALETTE_BY_ID.get(DEFAULT_ACCENT_PALETTE);
+    if (active) accentPaletteSelectedName.textContent = active.name;
+
+    for (const def of ACCENT_PALETTES) {
+      const button = accentPaletteButtons.get(def.id);
       if (!button) continue;
       const set = currentTheme === "dark" ? def.dark : def.light;
       button.style.setProperty("--sw-a1", `rgb(${set.a1})`);
@@ -811,31 +1509,63 @@ window.addEventListener("DOMContentLoaded", async () => {
       button.style.setProperty("--sw-a3", `rgb(${set.a3})`);
       button.style.setProperty("--sw-a4", `rgb(${set.a4})`);
 
-      const checked = def.id === currentPalette;
+      const checked = def.id === currentAccentPalette;
       button.setAttribute("aria-checked", checked ? "true" : "false");
       button.tabIndex = checked ? 0 : -1;
     }
   };
 
-  const setPalette = (next: AppPalette, announce = true) => {
-    if (!PALETTE_BY_ID.has(next)) return;
-    currentPalette = next;
-    window.localStorage.setItem(PALETTE_STORAGE_KEY, next);
-    applyPalette(currentPalette, currentTheme);
-    syncPalettePicker();
+  const syncAppThemePicker = () => {
+    const active = APP_THEME_BY_ID.get(currentAppTheme) ?? APP_THEME_BY_ID.get(DEFAULT_APP_THEME);
+    if (active) appThemeSelectedName.textContent = active.name;
+
+    for (const def of APP_THEME_PALETTES) {
+      const button = appThemeButtons.get(def.id);
+      if (!button) continue;
+      const set = currentTheme === "dark" ? def.dark : def.light;
+      button.style.setProperty("--sw-bg", set.bg);
+      button.style.setProperty("--sw-panel", set.panel);
+      button.style.setProperty("--sw-panel-3", set.panel3);
+
+      const checked = def.id === currentAppTheme;
+      button.setAttribute("aria-checked", checked ? "true" : "false");
+      button.tabIndex = checked ? 0 : -1;
+    }
+  };
+
+  const setAccentPalette = (next: AccentPalette, announce = true) => {
+    if (!ACCENT_PALETTE_BY_ID.has(next)) return;
+    currentAccentPalette = next;
+    window.localStorage.setItem(ACCENT_PALETTE_STORAGE_KEY, next);
+    applyAccentPalette(currentAccentPalette, currentTheme);
+    syncAccentPalettePicker();
 
     if (announce) {
-      const name = PALETTE_BY_ID.get(next)?.name ?? "Paleta";
+      const name = ACCENT_PALETTE_BY_ID.get(next)?.name ?? "Paleta";
       updateStatus(`Paleta: ${name}`);
       toasts.show({ kind: "info", message: `Paleta: ${name}` });
     }
   };
 
-  const buildPalettePicker = () => {
-    paletteGrid.innerHTML = "";
-    paletteButtons.clear();
+  const setAppTheme = (next: AppThemePalette, announce = true) => {
+    if (!APP_THEME_BY_ID.has(next)) return;
+    currentAppTheme = next;
+    window.localStorage.setItem(APP_THEME_STORAGE_KEY, next);
+    applyAppThemePalette(currentAppTheme, currentTheme);
+    syncAppThemePicker();
 
-    for (const def of PALETTES) {
+    if (announce) {
+      const name = APP_THEME_BY_ID.get(next)?.name ?? "Tema";
+      updateStatus(`Tema: ${name}`);
+      toasts.show({ kind: "info", message: `Tema: ${name}` });
+    }
+  };
+
+  const buildAccentPalettePicker = () => {
+    accentPaletteGrid.innerHTML = "";
+    accentPaletteButtons.clear();
+
+    for (const def of ACCENT_PALETTES) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "palette-option";
@@ -856,16 +1586,51 @@ window.addEventListener("DOMContentLoaded", async () => {
       label.textContent = def.name;
 
       button.append(dots, label);
-      button.addEventListener("click", () => setPalette(def.id));
+      button.addEventListener("click", () => setAccentPalette(def.id));
 
-      paletteGrid.append(button);
-      paletteButtons.set(def.id, button);
+      accentPaletteGrid.append(button);
+      accentPaletteButtons.set(def.id, button);
     }
 
-    syncPalettePicker();
+    syncAccentPalettePicker();
   };
 
-  buildPalettePicker();
+  const buildAppThemePicker = () => {
+    appThemeGrid.innerHTML = "";
+    appThemeButtons.clear();
+
+    for (const def of APP_THEME_PALETTES) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "theme-option";
+      button.setAttribute("role", "radio");
+      button.setAttribute("aria-label", `Tema ${def.name}`);
+
+      const swatches = document.createElement("span");
+      swatches.className = "theme-swatches";
+      swatches.setAttribute("aria-hidden", "true");
+      for (let i = 0; i < 3; i += 1) {
+        const sw = document.createElement("span");
+        sw.className = "theme-swatch";
+        swatches.append(sw);
+      }
+
+      const label = document.createElement("span");
+      label.className = "theme-name";
+      label.textContent = def.name;
+
+      button.append(swatches, label);
+      button.addEventListener("click", () => setAppTheme(def.id));
+
+      appThemeGrid.append(button);
+      appThemeButtons.set(def.id, button);
+    }
+
+    syncAppThemePicker();
+  };
+
+  buildAccentPalettePicker();
+  buildAppThemePicker();
 
   const applyTheme = (theme: AppTheme) => {
     currentTheme = theme;
@@ -873,8 +1638,10 @@ window.addEventListener("DOMContentLoaded", async () => {
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
     btnTheme.textContent = theme === "dark" ? "Modo claro" : "Modo oscuro";
     btnTheme.title = theme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro";
-    applyPalette(currentPalette, theme);
-    syncPalettePicker();
+    applyAppThemePalette(currentAppTheme, theme);
+    applyAccentPalette(currentAccentPalette, theme);
+    syncAppThemePicker();
+    syncAccentPalettePicker();
   };
   applyTheme(currentTheme);
 
@@ -1201,12 +1968,12 @@ window.addEventListener("DOMContentLoaded", async () => {
   };
   applyWorkspaceZoom();
 
-  const paletteSelectionActions: CommandPaletteAction[] = PALETTES.map((p) => ({
+  const paletteSelectionActions: CommandPaletteAction[] = ACCENT_PALETTES.map((p) => ({
     id: `palette.${p.id}`,
     title: `Paleta: ${p.name}`,
-    subtitle: "Cambiar colores de la app",
-    group: "Paleta",
-    keywords: ["paleta", "colores", "tema", p.id, p.name],
+    subtitle: "Cambiar acentos",
+    group: "Acentos",
+    keywords: ["paleta", "acentos", "colores", p.id, p.name],
   }));
 
   const basePaletteActions: CommandPaletteAction[] = [
@@ -1239,7 +2006,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     onRun: (actionId) => {
       if (actionId.startsWith("palette.")) {
         const next = actionId.slice("palette.".length);
-        if (isAppPalette(next)) setPalette(next);
+        if (isAccentPalette(next)) setAccentPalette(next);
         return;
       }
 
@@ -1697,7 +2464,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       void (async () => {
         if (actionId.startsWith("palette.")) {
           const next = actionId.slice("palette.".length);
-          if (isAppPalette(next)) setPalette(next);
+          if (isAccentPalette(next)) setAccentPalette(next);
           return;
         }
 
