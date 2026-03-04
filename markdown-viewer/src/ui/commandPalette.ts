@@ -235,24 +235,32 @@ export function createCommandPalette(options: CommandPaletteOptions): CommandPal
     const key = event.key;
     if (key === "Escape") {
       event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
       close();
       return;
     }
 
     if (key === "ArrowDown") {
       event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
       setSelectedIndex(selectedIndex + 1);
       return;
     }
 
     if (key === "ArrowUp") {
       event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
       setSelectedIndex(selectedIndex - 1);
       return;
     }
 
     if (key === "Enter") {
       event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
       runSelected();
     }
   };
@@ -300,7 +308,7 @@ export function createCommandPalette(options: CommandPaletteOptions): CommandPal
   const toggle = () => (openState ? close() : open());
 
   const destroy = () => {
-    document.removeEventListener("keydown", onKeyDown, true);
+    window.removeEventListener("keydown", onKeyDown, true);
     overlay.removeEventListener("mousedown", onOverlayMouseDown);
     input.removeEventListener("input", onInput);
     overlay.remove();
@@ -314,7 +322,7 @@ export function createCommandPalette(options: CommandPaletteOptions): CommandPal
 
   input.addEventListener("input", onInput);
   overlay.addEventListener("mousedown", onOverlayMouseDown);
-  document.addEventListener("keydown", onKeyDown, true);
+  window.addEventListener("keydown", onKeyDown, true);
 
   const setActions = (next: CommandPaletteAction[]) => {
     actions = [...next];
