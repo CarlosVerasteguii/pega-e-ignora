@@ -10,7 +10,7 @@ Construido con **Tauri v2**, **Vite** y **Toast UI Editor**.
 - Sidebar con **Jerarquía** (outline por encabezados)
 - Secciones del sidebar colapsables (menos ruido)
 - Tema oscuro/claro
-- Paletas de color (elige el estilo en el sidebar)
+- Paletas de color (Configuración)
 - Command palette (`Ctrl+K`)
 - Buscar / reemplazar (`Ctrl+F` / `Ctrl+H`)
 - Modo lectura (oculta sidebar)

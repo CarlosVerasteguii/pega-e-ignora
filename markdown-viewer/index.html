@@ -42,6 +42,32 @@
           <button id="btn-spellcheck" type="button" title="Ortografía">
             Ortografía: Sí
           </button>
+          <button
+            id="btn-settings"
+            type="button"
+            class="icon-only"
+            title="Configuración"
+            aria-label="Configuración"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+              />
+              <path
+                d="M19.4 15a7.9 7.9 0 0 0 .1-1l2-1.2-2-3.4-2.3.8a7.5 7.5 0 0 0-.9-.5L14.8 6h-4l-.5 2.7a7.5 7.5 0 0 0-.9.5L7.1 8.4l-2 3.4 2 1.2a7.9 7.9 0 0 0 .1 1 7.9 7.9 0 0 0-.1 1l-2 1.2 2 3.4 2.3-.8c.3.2.6.4.9.5L10.8 22h4l.5-2.7c.3-.1.6-.3.9-.5l2.3.8 2-3.4-2-1.2a7.9 7.9 0 0 0-.1-1Z"
+              />
+            </svg>
+          </button>
           <button id="btn-open-vault" type="button" title="Abrir carpeta">
             Carpeta
           </button>
@@ -157,16 +183,6 @@
                 >
               </label>
             </div>
-
-            <div class="format-divider" role="separator" aria-hidden="true"></div>
-
-            <div class="palette-picker" role="group" aria-label="Paleta de colores">
-              <div class="palette-picker-header">
-                <div class="palette-picker-title">Paleta</div>
-                <div id="palette-selected-name" class="palette-picker-subtitle">—</div>
-              </div>
-              <div id="palette-grid" class="palette-grid" role="radiogroup" aria-label="Elegir paleta"></div>
-            </div>
           </div>
         </section>
       </aside>
@@ -182,6 +198,57 @@
           </div>
         </section>
       </main>
+    </div>
+
+    <div id="settings-overlay" class="settings-overlay" hidden>
+      <div
+        class="settings-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Configuración"
+      >
+        <div class="settings-header">
+          <div class="settings-title">Configuración</div>
+          <button
+            id="settings-close"
+            type="button"
+            class="ghost icon-only"
+            title="Cerrar"
+            aria-label="Cerrar configuración"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="settings-body">
+          <div class="palette-picker" role="group" aria-label="Paleta de colores">
+            <div class="palette-picker-header">
+              <div class="palette-picker-title">Paleta</div>
+              <div id="palette-selected-name" class="palette-picker-subtitle">
+                —
+              </div>
+            </div>
+            <div
+              id="palette-grid"
+              class="palette-grid"
+              role="radiogroup"
+              aria-label="Elegir paleta"
+            ></div>
+          </div>
+        </div>
+      </div>
     </div>
   </body>
 </html>

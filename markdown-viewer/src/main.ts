@@ -740,8 +740,11 @@ window.addEventListener("DOMContentLoaded", async () => {
   const btnTheme = document.querySelector<HTMLButtonElement>("#btn-theme");
   const btnReadMode = document.querySelector<HTMLButtonElement>("#btn-read-mode");
   const btnSpellcheck = document.querySelector<HTMLButtonElement>("#btn-spellcheck");
+  const btnSettings = document.querySelector<HTMLButtonElement>("#btn-settings");
   const btnOpenVault = document.querySelector<HTMLButtonElement>("#btn-open-vault");
   const btnRefreshHistory = document.querySelector<HTMLButtonElement>("#btn-refresh-history");
+  const settingsOverlay = document.querySelector<HTMLElement>("#settings-overlay");
+  const settingsCloseBtn = document.querySelector<HTMLButtonElement>("#settings-close");
 
   if (
     !appEl ||
@@ -767,8 +770,11 @@ window.addEventListener("DOMContentLoaded", async () => {
     !btnTheme ||
     !btnReadMode ||
     !btnSpellcheck ||
+    !btnSettings ||
     !btnOpenVault ||
-    !btnRefreshHistory
+    !btnRefreshHistory ||
+    !settingsOverlay ||
+    !settingsCloseBtn
   ) {
     return;
   }
@@ -1258,6 +1264,85 @@ window.addEventListener("DOMContentLoaded", async () => {
       }
     },
   });
+
+  let settingsOpen = false;
+  let settingsLastActive: HTMLElement | null = null;
+  let settingsHideTimer: number | null = null;
+
+  const reduceMotionEnabled = () => window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+
+  const closeSettings = () => {
+    if (!settingsOpen) return;
+    settingsOpen = false;
+    settingsOverlay.dataset.state = "closed";
+    window.removeEventListener("keydown", onSettingsKeyDown, true);
+
+    const restoreFocus = () => {
+      const nextFocus = settingsLastActive;
+      settingsLastActive = null;
+      if (nextFocus && typeof nextFocus.focus === "function") {
+        window.setTimeout(() => nextFocus.focus(), 0);
+      }
+    };
+
+    if (settingsHideTimer !== null) {
+      window.clearTimeout(settingsHideTimer);
+      settingsHideTimer = null;
+    }
+
+    if (reduceMotionEnabled()) {
+      settingsOverlay.hidden = true;
+      restoreFocus();
+      return;
+    }
+
+    settingsHideTimer = window.setTimeout(() => {
+      settingsHideTimer = null;
+      settingsOverlay.hidden = true;
+      restoreFocus();
+    }, 170);
+  };
+
+  const onSettingsKeyDown = (event: KeyboardEvent) => {
+    if (!settingsOpen) return;
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    closeSettings();
+  };
+
+  const openSettings = () => {
+    if (settingsOpen) return;
+    settingsOpen = true;
+    settingsLastActive = (document.activeElement as HTMLElement | null) ?? null;
+
+    if (settingsHideTimer !== null) {
+      window.clearTimeout(settingsHideTimer);
+      settingsHideTimer = null;
+    }
+
+    palette.close();
+    if (findReplace.isOpen()) findReplace.close();
+
+    settingsOverlay.hidden = false;
+    settingsOverlay.dataset.state = "open";
+    window.addEventListener("keydown", onSettingsKeyDown, true);
+
+    window.setTimeout(() => {
+      settingsCloseBtn.focus();
+    }, 0);
+  };
+
+  const toggleSettings = () => (settingsOpen ? closeSettings() : openSettings());
+
+  settingsOverlay.addEventListener("mousedown", (event) => {
+    if (event.target !== settingsOverlay) return;
+    closeSettings();
+  });
+
+  settingsCloseBtn.addEventListener("click", closeSettings);
+  btnSettings.addEventListener("click", toggleSettings);
 
   const shortcutsPreVault = (e: KeyboardEvent) => {
     const key = e.key.toLowerCase();

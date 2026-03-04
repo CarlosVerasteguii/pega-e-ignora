@@ -211,6 +211,20 @@ button.ghost {
   background: transparent;
 }
 
+button.icon-only {
+  padding: 8px;
+  width: 36px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+button.icon-only svg {
+  display: block;
+}
+
 .sidebar {
   grid-area: side;
   border-right: 1px solid var(--border);
@@ -564,12 +578,12 @@ button.ghost {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 140px;
+  max-width: 240px;
 }
 
 .palette-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -648,10 +662,17 @@ button.ghost {
   white-space: nowrap;
 }
 
+@media (max-width: 560px) {
+  .palette-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   button,
   .sidebar-content,
-  .format-control input[type="range"] {
+  .format-control input[type="range"],
+  .settings-panel {
     transition: none;
   }
 }
@@ -1118,6 +1139,75 @@ button.ghost {
 
 .editor-host .toastui-editor-contents tr:last-child td {
   border-bottom: 0;
+}
+
+/* Settings */
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 8vh 18px 18px;
+  background: rgba(50, 40, 31, 0.22);
+  backdrop-filter: blur(6px);
+  z-index: 9998;
+}
+
+.settings-overlay[hidden] {
+  display: none;
+}
+
+[data-theme="dark"] .settings-overlay {
+  background: rgba(0, 0, 0, 0.46);
+}
+
+.settings-panel {
+  width: min(780px, 96vw);
+  max-height: min(78vh, 720px);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  box-shadow: 0 22px 48px var(--shadow);
+  transform: translateY(6px);
+  opacity: 0;
+  transition: transform 160ms ease-out, opacity 160ms ease-out;
+}
+
+.settings-overlay[data-state="open"] .settings-panel {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.settings-overlay[data-state="closed"] .settings-panel {
+  transform: translateY(6px);
+  opacity: 0;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--surface-tint-soft), transparent);
+}
+
+.settings-title {
+  font-weight: 900;
+  letter-spacing: 0.2px;
+}
+
+.settings-body {
+  padding: 12px 14px 14px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 /* Command Palette */
