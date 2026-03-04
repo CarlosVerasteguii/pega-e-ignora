@@ -3,7 +3,7 @@ import "./styles.css";
 import Editor from "@toast-ui/editor";
 
 import { join, documentDir } from "@tauri-apps/api/path";
-import { exists, mkdir, readTextFile, rename, writeTextFile } from "@tauri-apps/plugin-fs";
+import { exists, mkdir, readTextFile, remove, rename, writeTextFile } from "@tauri-apps/plugin-fs";
 import { confirm, message, open as dialogOpen, save as dialogSave } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { openVaultExplorer } from "./features/vaultExplorer";
@@ -2234,6 +2234,9 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
 
     for (const item of history) {
+      const row = document.createElement("li");
+      row.className = "history-row";
+
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "history-item";
@@ -2260,7 +2263,86 @@ window.addEventListener("DOMContentLoaded", async () => {
         await openNote(item.path);
       });
 
-      historyEl.append(btn);
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "history-delete";
+      deleteBtn.title = "Borrar archivo";
+      deleteBtn.setAttribute("aria-label", `Borrar ${basename(item.path)}`);
+      deleteBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M3 6h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M8 6V4h8v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M6 6l1 16h10l1-16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M10 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      `.trim();
+
+      deleteBtn.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (saveInProgress) return;
+
+        if (!isInsideVault(item.path)) {
+          await message(
+            `Por ahora esta app solo borra dentro del vault:\n\n${vault.vaultDir}`,
+            { kind: "warning", title: "Pega e Ignora" },
+          );
+          return;
+        }
+
+        const filename = basename(item.path);
+        const ok = await confirm(`¿Borrar "${filename}"?\n\nEsto elimina el archivo del vault.`, {
+          kind: "warning",
+          title: "Pega e Ignora",
+          okLabel: "Borrar",
+          cancelLabel: "Cancelar",
+        });
+        if (!ok) return;
+
+        deleteBtn.disabled = true;
+        let deleted = false;
+        try {
+          await remove(item.path);
+          deleted = true;
+          updateStatus(`Borrado: ${filename}`);
+          toasts.show({ id: "file.deleted", kind: "warning", message: `Borrado: ${filename}` });
+        } catch (err) {
+          updateStatus(`No pude borrar: ${filename}`);
+          toasts.show({ id: "file.deleteError", kind: "error", message: `No pude borrar: ${filename}` });
+        } finally {
+          let shouldDrop = deleted;
+          if (!shouldDrop) {
+            try {
+              shouldDrop = !(await exists(item.path));
+            } catch {
+              shouldDrop = false;
+            }
+          }
+
+          if (shouldDrop) {
+            history = history.filter((h) => h.path !== item.path);
+            renderHistory();
+            try {
+              await saveHistory(vault, history);
+            } catch {
+              // best-effort
+            }
+
+            if (currentPath && normalizeForCompare(currentPath) === normalizeForCompare(item.path)) {
+              currentPath = null;
+              isDirty = true;
+              updateMeta();
+            }
+            return;
+          }
+
+          deleteBtn.disabled = false;
+        }
+      });
+
+      row.append(btn, deleteBtn);
+      historyEl.append(row);
     }
   };
 

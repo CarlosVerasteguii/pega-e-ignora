@@ -363,6 +363,16 @@ button.icon-only svg {
   overflow: visible;
 }
 
+.history-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.history-row .history-item {
+  flex: 1;
+}
+
 .history-item {
   border: 1px solid var(--border);
   background: var(--history-bg);
@@ -377,6 +387,46 @@ button.icon-only svg {
 .history-item:hover {
   border-color: var(--history-hover-border);
   background: var(--history-hover-bg);
+}
+
+.history-delete {
+  width: 40px;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--history-bg);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(0) scale(0.98);
+  transition: opacity 120ms ease, transform 120ms ease, border-color 120ms ease,
+    background-color 120ms ease, color 120ms ease;
+}
+
+.history-row:hover .history-delete,
+.history-row:focus-within .history-delete {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-1px) scale(1);
+}
+
+.history-delete:hover {
+  border-color: var(--history-hover-border);
+  background: var(--history-hover-bg);
+  color: var(--text);
+}
+
+.history-delete:active {
+  transform: translateY(0) scale(0.99);
+}
+
+.history-delete svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
 }
 
 .history-title {
