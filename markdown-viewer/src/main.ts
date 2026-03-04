@@ -2694,21 +2694,21 @@ window.addEventListener("DOMContentLoaded", async () => {
         saveInProgress = true;
         updateMeta();
         try {
-        if (e.shiftKey) {
-          const savePath = await dialogSave({
-            title: "Guardar Markdown como…",
-            defaultPath: await join(vault.notesDir, `${slugify(inferTitle(getEditorValue()))}.md`),
-            filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
-          });
-          if (savePath) await saveToPath(savePath);
-          return;
-        }
+          if (e.shiftKey) {
+            const savePath = await dialogSave({
+              title: "Guardar Markdown como…",
+              defaultPath: await join(vault.notesDir, `${slugify(inferTitle(getEditorValue()))}.md`),
+              filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
+            });
+            if (savePath) await saveToPath(savePath);
+            return;
+          }
 
-        if (currentPath) {
-          await saveToPath(currentPath);
-          return;
-        }
-        await saveNewNote();
+          if (currentPath) {
+            await saveToPath(currentPath);
+            return;
+          }
+          await saveNewNote();
         } finally {
           saveInProgress = false;
           updateMeta();
