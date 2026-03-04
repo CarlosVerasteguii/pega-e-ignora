@@ -25,6 +25,31 @@ type VaultPaths = {
 };
 
 type AppTheme = "light" | "dark";
+type AppPalette =
+  | "caramelo"
+  | "oceano"
+  | "bosque"
+  | "uva"
+  | "sakura"
+  | "cobalto"
+  | "menta"
+  | "atardecer"
+  | "grafito"
+  | "limon";
+
+type PaletteAccents = {
+  a1: string;
+  a2: string;
+  a3: string;
+  a4: string;
+};
+
+type PaletteDefinition = {
+  id: AppPalette;
+  name: string;
+  light: PaletteAccents;
+  dark: PaletteAccents;
+};
 type HeadingEntry = {
   level: number;
   text: string;
@@ -32,6 +57,7 @@ type HeadingEntry = {
 };
 
 const THEME_STORAGE_KEY = "markdown-viewer.theme";
+const PALETTE_STORAGE_KEY = "markdown-viewer.palette";
 const WORKSPACE_ZOOM_STORAGE_KEY = "markdown-viewer.workspaceZoom";
 const TYPOGRAPHY_STORAGE_KEY = "markdown-viewer.typography";
 const SPELLCHECK_STORAGE_KEY = "markdown-viewer.spellcheck";
@@ -55,6 +81,72 @@ const DEFAULT_TYPOGRAPHY: TypographySettings = {
   lineHeight: 1.5,
   paragraphSpacingEm: 0.22,
 };
+
+const PALETTES: PaletteDefinition[] = [
+  {
+    id: "caramelo",
+    name: "Caramelo",
+    light: { a1: "140 107 66", a2: "191 160 122", a3: "165 132 90", a4: "109 82 52" },
+    dark: { a1: "213 176 132", a2: "201 169 130", a3: "199 154 103", a4: "176 127 78" },
+  },
+  {
+    id: "oceano",
+    name: "Oceano",
+    light: { a1: "47 127 130", a2: "93 179 182", a3: "59 157 160", a4: "32 95 99" },
+    dark: { a1: "128 212 214", a2: "107 200 203", a3: "81 183 187", a4: "58 163 168" },
+  },
+  {
+    id: "bosque",
+    name: "Bosque",
+    light: { a1: "47 122 61", a2: "123 189 138", a3: "78 160 95", a4: "34 88 44" },
+    dark: { a1: "159 224 173", a2: "134 213 154", a3: "107 200 134", a4: "79 181 111" },
+  },
+  {
+    id: "uva",
+    name: "Uva",
+    light: { a1: "109 74 168", a2: "181 154 223", a3: "143 107 198", a4: "79 50 123" },
+    dark: { a1: "215 192 255", a2: "201 171 255", a3: "179 140 255", a4: "155 114 232" },
+  },
+  {
+    id: "sakura",
+    name: "Sakura",
+    light: { a1: "178 70 107", a2: "226 162 184", a3: "208 112 147", a4: "127 46 74" },
+    dark: { a1: "255 193 214", a2: "255 173 201", a3: "255 139 183", a4: "226 99 154" },
+  },
+  {
+    id: "cobalto",
+    name: "Cobalto",
+    light: { a1: "47 79 163", a2: "147 168 230", a3: "78 113 207", a4: "32 53 111" },
+    dark: { a1: "184 199 255", a2: "164 183 255", a3: "134 160 255", a4: "95 127 230" },
+  },
+  {
+    id: "menta",
+    name: "Menta",
+    light: { a1: "31 138 106", a2: "134 215 192", a3: "58 182 150", a4: "23 96 74" },
+    dark: { a1: "176 241 223", a2: "150 234 212", a3: "110 221 191", a4: "68 200 165" },
+  },
+  {
+    id: "atardecer",
+    name: "Atardecer",
+    light: { a1: "196 87 45", a2: "240 179 138", a3: "224 123 76", a4: "122 55 31" },
+    dark: { a1: "255 201 163", a2: "255 184 138", a3: "255 154 99", a4: "230 122 63" },
+  },
+  {
+    id: "grafito",
+    name: "Grafito",
+    light: { a1: "71 85 105", a2: "148 163 184", a3: "100 116 139", a4: "31 41 55" },
+    dark: { a1: "226 232 240", a2: "203 213 225", a3: "148 163 184", a4: "100 116 139" },
+  },
+  {
+    id: "limon",
+    name: "Limon",
+    light: { a1: "106 143 0", a2: "207 227 138", a3: "150 184 15", a4: "68 89 0" },
+    dark: { a1: "230 255 156", a2: "216 255 122", a3: "194 242 74", a4: "157 214 31" },
+  },
+];
+
+const PALETTE_BY_ID = new Map<AppPalette, PaletteDefinition>(PALETTES.map((p) => [p.id, p]));
+const DEFAULT_PALETTE: AppPalette = "caramelo";
 
 function basename(path: string): string {
   return path.replace(/^.*[\\/]/, "");
@@ -110,10 +202,26 @@ function getStoredTheme(): AppTheme | null {
   return stored === "light" || stored === "dark" ? stored : null;
 }
 
+function isAppPalette(value: string | null): value is AppPalette {
+  if (!value) return false;
+  return PALETTE_BY_ID.has(value as AppPalette);
+}
+
+function getStoredPalette(): AppPalette | null {
+  const stored = window.localStorage.getItem(PALETTE_STORAGE_KEY);
+  return isAppPalette(stored) ? stored : null;
+}
+
 function getInitialTheme(): AppTheme {
   const storedTheme = getStoredTheme();
   if (storedTheme) return storedTheme;
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function getInitialPalette(): AppPalette {
+  const storedPalette = getStoredPalette();
+  if (storedPalette) return storedPalette;
+  return DEFAULT_PALETTE;
 }
 
 function looksLikeMarkdown(text: string): boolean {
@@ -622,6 +730,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   const typographyLineHeightValue = document.querySelector<HTMLElement>("#typography-line-height-value");
   const typographyParagraphSpacing = document.querySelector<HTMLInputElement>("#typography-paragraph-spacing");
   const typographyParagraphSpacingValue = document.querySelector<HTMLElement>("#typography-paragraph-spacing-value");
+  const paletteGrid = document.querySelector<HTMLElement>("#palette-grid");
+  const paletteSelectedName = document.querySelector<HTMLElement>("#palette-selected-name");
 
   const btnNew = document.querySelector<HTMLButtonElement>("#btn-new");
   const btnOpen = document.querySelector<HTMLButtonElement>("#btn-open");
@@ -648,6 +758,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     !typographyLineHeightValue ||
     !typographyParagraphSpacing ||
     !typographyParagraphSpacingValue ||
+    !paletteGrid ||
+    !paletteSelectedName ||
     !btnNew ||
     !btnOpen ||
     !btnSave ||
@@ -665,12 +777,98 @@ window.addEventListener("DOMContentLoaded", async () => {
   const updateStatus = (text: string) => setText(statusEl, text);
 
   let currentTheme: AppTheme = getInitialTheme();
+  let currentPalette: AppPalette = getInitialPalette();
+  const paletteButtons = new Map<AppPalette, HTMLButtonElement>();
+
+  const applyPalette = (palette: AppPalette, theme: AppTheme) => {
+    const def = PALETTE_BY_ID.get(palette) ?? PALETTE_BY_ID.get(DEFAULT_PALETTE);
+    if (!def) return;
+    const set = theme === "dark" ? def.dark : def.light;
+    const root = document.documentElement;
+    root.setAttribute("data-palette", def.id);
+    root.style.setProperty("--accent-1-rgb", set.a1);
+    root.style.setProperty("--accent-2-rgb", set.a2);
+    root.style.setProperty("--accent-3-rgb", set.a3);
+    root.style.setProperty("--accent-4-rgb", set.a4);
+  };
+
+  const syncPalettePicker = () => {
+    const active = PALETTE_BY_ID.get(currentPalette) ?? PALETTE_BY_ID.get(DEFAULT_PALETTE);
+    if (active) paletteSelectedName.textContent = active.name;
+
+    for (const def of PALETTES) {
+      const button = paletteButtons.get(def.id);
+      if (!button) continue;
+      const set = currentTheme === "dark" ? def.dark : def.light;
+      button.style.setProperty("--sw-a1", `rgb(${set.a1})`);
+      button.style.setProperty("--sw-a2", `rgb(${set.a2})`);
+      button.style.setProperty("--sw-a3", `rgb(${set.a3})`);
+      button.style.setProperty("--sw-a4", `rgb(${set.a4})`);
+
+      const checked = def.id === currentPalette;
+      button.setAttribute("aria-checked", checked ? "true" : "false");
+      button.tabIndex = checked ? 0 : -1;
+    }
+  };
+
+  const setPalette = (next: AppPalette, announce = true) => {
+    if (!PALETTE_BY_ID.has(next)) return;
+    currentPalette = next;
+    window.localStorage.setItem(PALETTE_STORAGE_KEY, next);
+    applyPalette(currentPalette, currentTheme);
+    syncPalettePicker();
+
+    if (announce) {
+      const name = PALETTE_BY_ID.get(next)?.name ?? "Paleta";
+      updateStatus(`Paleta: ${name}`);
+      toasts.show({ kind: "info", message: `Paleta: ${name}` });
+    }
+  };
+
+  const buildPalettePicker = () => {
+    paletteGrid.innerHTML = "";
+    paletteButtons.clear();
+
+    for (const def of PALETTES) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "palette-option";
+      button.setAttribute("role", "radio");
+      button.setAttribute("aria-label", `Paleta ${def.name}`);
+
+      const dots = document.createElement("span");
+      dots.className = "palette-dots";
+      dots.setAttribute("aria-hidden", "true");
+      for (let i = 0; i < 4; i += 1) {
+        const dot = document.createElement("span");
+        dot.className = "palette-dot";
+        dots.append(dot);
+      }
+
+      const label = document.createElement("span");
+      label.className = "palette-name";
+      label.textContent = def.name;
+
+      button.append(dots, label);
+      button.addEventListener("click", () => setPalette(def.id));
+
+      paletteGrid.append(button);
+      paletteButtons.set(def.id, button);
+    }
+
+    syncPalettePicker();
+  };
+
+  buildPalettePicker();
+
   const applyTheme = (theme: AppTheme) => {
     currentTheme = theme;
     document.documentElement.setAttribute("data-theme", theme);
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
     btnTheme.textContent = theme === "dark" ? "Modo claro" : "Modo oscuro";
     btnTheme.title = theme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro";
+    applyPalette(currentPalette, theme);
+    syncPalettePicker();
   };
   applyTheme(currentTheme);
 
@@ -997,6 +1195,14 @@ window.addEventListener("DOMContentLoaded", async () => {
   };
   applyWorkspaceZoom();
 
+  const paletteSelectionActions: CommandPaletteAction[] = PALETTES.map((p) => ({
+    id: `palette.${p.id}`,
+    title: `Paleta: ${p.name}`,
+    subtitle: "Cambiar colores de la app",
+    group: "Paleta",
+    keywords: ["paleta", "colores", "tema", p.id, p.name],
+  }));
+
   const basePaletteActions: CommandPaletteAction[] = [
     { id: "view.theme", title: "Cambiar tema", subtitle: "Claro / Oscuro", group: "Vista" },
     { id: "view.readMode", title: "Modo lectura", subtitle: "Ocultar sidebar", group: "Vista", keywords: ["lectura"] },
@@ -1017,6 +1223,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       group: "Herramientas",
       keywords: ["replace", "reemplazar"],
     },
+    ...paletteSelectionActions,
   ];
 
   let palette = createCommandPalette({
@@ -1024,6 +1231,12 @@ window.addEventListener("DOMContentLoaded", async () => {
     title: "Comandos",
     placeholder: "Escribe para buscar…",
     onRun: (actionId) => {
+      if (actionId.startsWith("palette.")) {
+        const next = actionId.slice("palette.".length);
+        if (isAppPalette(next)) setPalette(next);
+        return;
+      }
+
       if (actionId === "view.theme") {
         btnTheme.click();
         return;
@@ -1387,6 +1600,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       group: "Herramientas",
       keywords: ["replace", "reemplazar"],
     },
+    ...paletteSelectionActions,
   ];
 
   palette.destroy();
@@ -1396,6 +1610,12 @@ window.addEventListener("DOMContentLoaded", async () => {
     placeholder: "Escribe para buscar…",
     onRun: (actionId) => {
       void (async () => {
+        if (actionId.startsWith("palette.")) {
+          const next = actionId.slice("palette.".length);
+          if (isAppPalette(next)) setPalette(next);
+          return;
+        }
+
         if (actionId === "file.new") {
           if (!(await maybeDiscardChanges())) return;
           setEditorValue("");
