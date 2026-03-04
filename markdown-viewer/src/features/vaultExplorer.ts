@@ -287,13 +287,13 @@ export async function openVaultExplorer(options: VaultExplorerOptions): Promise<
   newNoteBtn.type = "button";
   newNoteBtn.className = "vei-close";
   newNoteBtn.textContent = "Nueva nota";
-  newNoteBtn.title = "Crear una nota en la raíz del vault";
+  newNoteBtn.title = "Crear una nota en la carpeta de notas";
 
   const newFolderBtn = document.createElement("button");
   newFolderBtn.type = "button";
   newFolderBtn.className = "vei-close";
   newFolderBtn.textContent = "Nueva carpeta";
-  newFolderBtn.title = "Crear una carpeta en la raíz del vault";
+  newFolderBtn.title = "Crear una carpeta en la carpeta de notas";
 
   toolbar.append(searchInput, newFolderBtn, newNoteBtn);
 
@@ -476,7 +476,10 @@ export async function openVaultExplorer(options: VaultExplorerOptions): Promise<
     if (!safe) return;
     const filename = safe.toLowerCase().endsWith(".md") ? safe : `${safe}.md`;
     const path = await join(options.notesDir, filename);
-    if (await exists(path)) return;
+    if (await exists(path)) {
+      setResults([{ kind: "file", name: filename, path }], "Ya existe");
+      return;
+    }
     await writeTextFile(path, `# ${safe}\n\n`);
     await refreshRoot();
     setResults([{ kind: "file", name: filename, path }], "Creada");
@@ -511,4 +514,3 @@ export async function openVaultExplorer(options: VaultExplorerOptions): Promise<
   cleanup();
   return result;
 }
-

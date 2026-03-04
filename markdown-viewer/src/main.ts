@@ -52,7 +52,7 @@ type SidebarSectionsState = Partial<Record<SidebarSectionId, boolean>>;
 
 const DEFAULT_TYPOGRAPHY: TypographySettings = {
   fontSizePx: 14,
-  lineHeight: 1.48,
+  lineHeight: 1.5,
   paragraphSpacingEm: 0.22,
 };
 
@@ -263,6 +263,18 @@ function sanitizeMarkdownLinks(markdown: string): { markdown: string; changed: b
       const autolinkBefore = line;
       line = line.replace(/<\s*(javascript|vbscript)\s*:[^>]*>/gi, "<#>");
       if (line !== autolinkBefore) changed = true;
+
+      const htmlAnchorBefore = line;
+      line = line.replace(/<a\b[^>]*>/gi, (tag) => {
+        const hrefMatch = tag.match(/\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+        if (!hrefMatch) return tag;
+        const hrefRaw = (hrefMatch[1] ?? hrefMatch[2] ?? hrefMatch[3] ?? "").trim();
+        if (!hrefRaw) return tag;
+        if (!isPossiblyUnsafeUrl(hrefRaw)) return tag;
+        changed = true;
+        return tag.replace(/\bhref\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i, 'href="#"');
+      });
+      if (line !== htmlAnchorBefore) changed = true;
 
       const sanitizedInline = sanitizeInlineLinksInLine(line);
       line = sanitizedInline.line;
@@ -650,6 +662,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
 
   const toasts = createToastHost();
+  const updateStatus = (text: string) => setText(statusEl, text);
 
   let currentTheme: AppTheme = getInitialTheme();
   const applyTheme = (theme: AppTheme) => {
@@ -660,6 +673,13 @@ window.addEventListener("DOMContentLoaded", async () => {
     btnTheme.title = theme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro";
   };
   applyTheme(currentTheme);
+
+  btnTheme.addEventListener("click", () => {
+    const nextTheme: AppTheme = currentTheme === "light" ? "dark" : "light";
+    applyTheme(nextTheme);
+    updateStatus(nextTheme === "dark" ? "Tema oscuro" : "Tema claro");
+    toasts.show({ kind: "info", message: nextTheme === "dark" ? "Tema oscuro" : "Tema claro" });
+  });
 
   const readReadModeEnabled = (): boolean => {
     const raw = window.localStorage.getItem(READ_MODE_STORAGE_KEY);
@@ -977,15 +997,97 @@ window.addEventListener("DOMContentLoaded", async () => {
   };
   applyWorkspaceZoom();
 
+  const basePaletteActions: CommandPaletteAction[] = [
+    { id: "view.theme", title: "Cambiar tema", subtitle: "Claro / Oscuro", group: "Vista" },
+    { id: "view.readMode", title: "Modo lectura", subtitle: "Ocultar sidebar", group: "Vista", keywords: ["lectura"] },
+    { id: "tools.spellcheck", title: "Ortografía", subtitle: "Mostrar/ocultar subrayados", group: "Herramientas" },
+    {
+      id: "tools.find",
+      title: "Buscar…",
+      subtitle: "Buscar en el documento",
+      shortcut: "Ctrl+F",
+      group: "Herramientas",
+      keywords: ["find", "buscar"],
+    },
+    {
+      id: "tools.replace",
+      title: "Reemplazar…",
+      subtitle: "Buscar y reemplazar",
+      shortcut: "Ctrl+H",
+      group: "Herramientas",
+      keywords: ["replace", "reemplazar"],
+    },
+  ];
+
+  let palette = createCommandPalette({
+    actions: basePaletteActions,
+    title: "Comandos",
+    placeholder: "Escribe para buscar…",
+    onRun: (actionId) => {
+      if (actionId === "view.theme") {
+        btnTheme.click();
+        return;
+      }
+      if (actionId === "view.readMode") {
+        btnReadMode.click();
+        return;
+      }
+      if (actionId === "tools.spellcheck") {
+        btnSpellcheck.click();
+        return;
+      }
+      if (actionId === "tools.find") {
+        findReplace.openFind();
+        return;
+      }
+      if (actionId === "tools.replace") {
+        findReplace.openReplace();
+      }
+    },
+  });
+
+  const shortcutsPreVault = (e: KeyboardEvent) => {
+    const key = e.key.toLowerCase();
+    const cmdOrCtrl = e.ctrlKey || e.metaKey;
+    if (!cmdOrCtrl) return;
+    if (key === "k") {
+      e.preventDefault();
+      palette.toggle();
+      return;
+    }
+    if (key === "f") {
+      e.preventDefault();
+      findReplace.openFind();
+      return;
+    }
+    if (key === "h") {
+      e.preventDefault();
+      findReplace.openReplace();
+    }
+  };
+
+  window.addEventListener("keydown", shortcutsPreVault);
+
   let vault: VaultPaths;
   try {
     vault = await getVaultPaths();
     await ensureVault(vault);
   } catch (err) {
-    await message(`No pude crear la carpeta del vault.\n\n${String(err)}`, {
-      kind: "error",
-      title: "Pega e Ignora",
-    });
+    try {
+      await message(`No pude crear la carpeta del vault.\n\n${String(err)}`, {
+        kind: "error",
+        title: "Pega e Ignora",
+      });
+    } catch {
+      updateStatus("Vault no disponible");
+      toasts.show({ kind: "error", message: "Vault no disponible (solo modo lectura)." });
+    }
+
+    btnOpen.disabled = true;
+    btnSave.disabled = true;
+    btnSaveAs.disabled = true;
+    btnOpenVault.disabled = true;
+    btnRefreshHistory.disabled = true;
     return;
   }
 
@@ -1004,8 +1106,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     const fileLabel = currentPath ? basename(currentPath) : "(sin archivo)";
     setText(workspaceMetaEl, `${fileLabel}${isDirty ? " • editando" : ""}`);
   };
-
-  const updateStatus = (text: string) => setText(statusEl, text);
 
   editorEl.addEventListener(
     "click",
@@ -1289,7 +1389,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     },
   ];
 
-  const palette = createCommandPalette({
+  palette.destroy();
+  palette = createCommandPalette({
     actions: paletteActions,
     title: "Comandos",
     placeholder: "Escribe para buscar…",
@@ -1455,7 +1556,10 @@ window.addEventListener("DOMContentLoaded", async () => {
       event.stopPropagation();
       event.stopImmediatePropagation();
 
-      setEditorValue(sanitizedText.markdown);
+      const applied = setEditorValue(sanitizedText.markdown);
+      if (sanitizedText.changed || applied.hadUnsafeLinks) {
+        toasts.show({ kind: "warning", message: "Se eliminaron enlaces no seguros del contenido pegado." });
+      }
 
       isDirty = true;
       updateMeta();
@@ -1549,6 +1653,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
   };
 
+  window.removeEventListener("keydown", shortcutsPreVault);
   window.addEventListener("keydown", shortcuts);
 
   btnNew.addEventListener("click", () => {
@@ -1569,13 +1674,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   btnSaveAs.addEventListener("click", () => {
     const event = new KeyboardEvent("keydown", { key: "s", ctrlKey: true, shiftKey: true });
     window.dispatchEvent(event);
-  });
-
-  btnTheme.addEventListener("click", () => {
-    const nextTheme: AppTheme = currentTheme === "light" ? "dark" : "light";
-    applyTheme(nextTheme);
-    updateStatus(nextTheme === "dark" ? "Tema oscuro" : "Tema claro");
-    toasts.show({ kind: "info", message: nextTheme === "dark" ? "Tema oscuro" : "Tema claro" });
   });
 
   workspaceEl.addEventListener(
