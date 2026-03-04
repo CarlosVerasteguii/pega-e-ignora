@@ -2159,6 +2159,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   let currentPath: string | null = null;
   let history: HistoryItem[] = await loadHistory(vault);
   let isDirty = false;
+  let saveInProgress = false;
 
   const normalizeForCompare = (p: string) => p.replace(/\\/g, "/").toLowerCase().replace(/\/+$/, "");
   const vaultDirNorm = normalizeForCompare(vault.vaultDir);
@@ -2167,9 +2168,16 @@ window.addEventListener("DOMContentLoaded", async () => {
     return norm === vaultDirNorm || norm.startsWith(vaultDirNorm + "/");
   };
 
+  const syncFileButtons = () => {
+    const canSave = !saveInProgress && (currentPath === null || isDirty);
+    btnSave.disabled = !canSave;
+    btnSaveAs.disabled = saveInProgress;
+  };
+
   const updateMeta = () => {
     const fileLabel = currentPath ? basename(currentPath) : "(sin archivo)";
     setText(workspaceMetaEl, `${fileLabel}${isDirty ? " • editando" : ""}`);
+    syncFileButtons();
   };
 
   editorEl.addEventListener(
@@ -2378,7 +2386,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       isDirty = false;
       updateMeta();
       updateStatus(`Guardado: ${basename(path)}${sanitized.changed ? " • links inseguros bloqueados" : ""}`);
-      toasts.show({ kind: "success", message: `Guardado: ${basename(path)}` });
+      toasts.show({ id: "file.saved", kind: "success", message: `Guardado: ${basename(path)}` });
       await upsertHistory(path, inferTitle(sanitized.markdown));
     } catch (err) {
       await message(`No pude guardar el archivo.\n\n${String(err)}`, {
@@ -2675,7 +2683,17 @@ window.addEventListener("DOMContentLoaded", async () => {
 
     if (key === "s") {
       e.preventDefault();
+      if (saveInProgress) return;
       void (async () => {
+        if (!e.shiftKey && currentPath && !isDirty) {
+          updateStatus(`Sin cambios: ${basename(currentPath)}`);
+          toasts.show({ id: "file.noChanges", kind: "info", message: "Sin cambios para guardar." });
+          return;
+        }
+
+        saveInProgress = true;
+        updateMeta();
+        try {
         if (e.shiftKey) {
           const savePath = await dialogSave({
             title: "Guardar Markdown como…",
@@ -2691,6 +2709,10 @@ window.addEventListener("DOMContentLoaded", async () => {
           return;
         }
         await saveNewNote();
+        } finally {
+          saveInProgress = false;
+          updateMeta();
+        }
       })();
     }
 

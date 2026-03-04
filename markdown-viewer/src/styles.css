@@ -206,6 +206,21 @@ button:active {
   transform: translateY(1px);
 }
 
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+button:disabled:hover {
+  border-color: var(--border);
+  background: var(--button-bg);
+}
+
+button:disabled:active {
+  transform: none;
+}
+
 button.ghost {
   padding: 6px 8px;
   background: transparent;

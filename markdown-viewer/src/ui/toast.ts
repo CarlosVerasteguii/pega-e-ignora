@@ -1,6 +1,7 @@
 export type ToastKind = "info" | "success" | "warning" | "error";
 
 export type ToastShowOptions = {
+  id?: string;
   title?: string;
   message: string;
   kind?: ToastKind;
@@ -61,6 +62,7 @@ export function createToastHost(options: ToastHostOptions = {}): ToastHost {
   };
 
   const toasts: ToastRuntime[] = [];
+  const toastById = new Map<string, ToastRuntime>();
 
   const removeToastEl = (toastEl: HTMLElement) => {
     toastEl.remove();
@@ -74,6 +76,7 @@ export function createToastHost(options: ToastHostOptions = {}): ToastHost {
     runtime.timeoutId = null;
 
     toasts.splice(idx, 1);
+    toastById.delete(id);
 
     if (prefersReducedMotion()) {
       removeToastEl(runtime.el);
@@ -118,9 +121,68 @@ export function createToastHost(options: ToastHostOptions = {}): ToastHost {
   };
 
   const show = (opts: ToastShowOptions): ToastHandle => {
-    const id = uid();
     const kind: ToastKind = opts.kind ?? "info";
     const durationMs = Math.floor(clampNumber(opts.durationMs ?? defaultDurationMs, 800, 30_000));
+    const desiredId = opts.id?.trim();
+
+    if (desiredId) {
+      const existing = toastById.get(desiredId);
+      if (existing) {
+        existing.el.className = `toast toast--${kind}`;
+        existing.el.setAttribute("role", kind === "error" ? "alert" : "status");
+
+        const content = existing.el.querySelector<HTMLElement>(".toast__content");
+        const messageEl = content?.querySelector<HTMLElement>(".toast__message") ?? null;
+        const existingTitleEl = content?.querySelector<HTMLElement>(".toast__title") ?? null;
+
+        if (content) {
+          if (opts.title) {
+            if (existingTitleEl) {
+              existingTitleEl.textContent = opts.title;
+            } else {
+              const title = document.createElement("div");
+              title.className = "toast__title";
+              title.textContent = opts.title;
+              if (messageEl) {
+                content.insertBefore(title, messageEl);
+              } else {
+                content.append(title);
+              }
+            }
+          } else if (existingTitleEl) {
+            existingTitleEl.remove();
+          }
+
+          if (messageEl) {
+            messageEl.textContent = opts.message;
+          } else {
+            const msg = document.createElement("div");
+            msg.className = "toast__message";
+            msg.textContent = opts.message;
+            content.append(msg);
+          }
+        }
+
+        existing.remainingMs = durationMs;
+        if (!existing.paused) {
+          scheduleAutoDismiss(existing);
+        } else {
+          existing.timeoutId = null;
+          existing.lastStartAt = Date.now();
+        }
+
+        const toastIndex = toasts.findIndex((t) => t.id === desiredId);
+        if (toastIndex !== -1) {
+          const [runtime] = toasts.splice(toastIndex, 1);
+          toasts.push(runtime);
+        }
+
+        host.append(existing.el);
+        return { id: desiredId, dismiss: () => dismiss(desiredId) };
+      }
+    }
+
+    const id = desiredId ?? uid();
 
     const toastEl = document.createElement("div");
     toastEl.className = `toast toast--${kind}`;
@@ -171,6 +233,7 @@ export function createToastHost(options: ToastHostOptions = {}): ToastHost {
     toastEl.addEventListener("focusout", () => resume(runtime));
 
     toasts.push(runtime);
+    toastById.set(id, runtime);
     while (toasts.length > maxToasts) dismiss(toasts[0].id);
 
     if (!prefersReducedMotion()) {
@@ -193,4 +256,3 @@ export function createToastHost(options: ToastHostOptions = {}): ToastHost {
 
   return { show, dismiss, clear, destroy, el: host };
 }
-
