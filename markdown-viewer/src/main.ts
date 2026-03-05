@@ -1483,6 +1483,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   const jsonPanelEl = document.querySelector<HTMLElement>("#workspace-json-panel");
   const editorEl = document.querySelector<HTMLElement>("#editor");
   const jsonTextEditorEl = document.querySelector<HTMLTextAreaElement>("#json-text-editor");
+  const jsonHighlightEl = document.querySelector<HTMLElement>("#json-highlight");
   const jsonTreeEl = document.querySelector<HTMLElement>("#json-tree");
   const jsonTreePaneEl = document.querySelector<HTMLElement>("#json-tree-pane");
   const jsonLayoutEl = document.querySelector<HTMLElement>("#json-layout");
@@ -1493,6 +1494,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   const workspaceEl = document.querySelector<HTMLElement>(".workspace");
   const historyEl = document.querySelector<HTMLElement>("#history");
   const outlineEl = document.querySelector<HTMLElement>("#outline");
+  const outlineSectionEl = document.querySelector<HTMLElement>(".sidebar-section-outline");
+  const outlineSectionToggleEl = document.querySelector<HTMLButtonElement>(".sidebar-section-outline .sidebar-section-toggle");
   const outlineSectionTitleEl = document.querySelector<HTMLElement>(".sidebar-section-outline .sidebar-section-title");
   const formatSectionEl = document.querySelector<HTMLElement>(".sidebar-section-format");
   const resetTypographyBtn = document.querySelector<HTMLButtonElement>("#btn-reset-typography");
@@ -1542,6 +1545,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     !jsonPanelEl ||
     !editorEl ||
     !jsonTextEditorEl ||
+    !jsonHighlightEl ||
     !jsonTreeEl ||
     !jsonTreePaneEl ||
     !jsonLayoutEl ||
@@ -1552,6 +1556,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     !workspaceEl ||
     !historyEl ||
     !outlineEl ||
+    !outlineSectionEl ||
+    !outlineSectionToggleEl ||
     !outlineSectionTitleEl ||
     !formatSectionEl ||
     !resetTypographyBtn ||
@@ -1632,6 +1638,9 @@ window.addEventListener("DOMContentLoaded", async () => {
     });
   };
 
+  let activeDocumentMode: DocumentMode = getInitialDocumentMode();
+  let onDocumentModeChanged = () => {};
+
   let jsonWorkspaceTreeApi: Pick<JsonWorkspace, "setTreeVisible"> | null = null;
 
   const readJsonTreeVisible = (): boolean => {
@@ -1647,6 +1656,10 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   let jsonTreeVisible = readJsonTreeVisible();
 
+  const syncOutlineSectionVisibility = () => {
+    outlineSectionEl.hidden = activeDocumentMode === "json" && !jsonTreeVisible;
+  };
+
   const applyJsonTreeVisible = (visible: boolean) => {
     jsonTreeVisible = visible;
     jsonLayoutEl.dataset.tree = visible ? "shown" : "hidden";
@@ -1656,6 +1669,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     btnJsonTreeToggle.title = label;
     btnJsonTreeToggle.setAttribute("aria-label", label);
     jsonWorkspaceTreeApi?.setTreeVisible(visible);
+    syncOutlineSectionVisibility();
   };
 
   applyJsonTreeVisible(jsonTreeVisible);
@@ -2337,6 +2351,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
   const jsonWorkspace = createJsonWorkspace({
     textAreaEl: jsonTextEditorEl,
+    highlightEl: jsonHighlightEl,
     treeEl: jsonTreeEl,
     statusEl: jsonParseStatusEl,
     prettyBtn: btnJsonPretty,
@@ -2375,9 +2390,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     notify({ kind: "info", message: msg });
   });
 
-  let activeDocumentMode: DocumentMode = getInitialDocumentMode();
-  let onDocumentModeChanged = () => {};
-
   const syncModeTabs = () => {
     const markdownActive = activeDocumentMode === "markdown";
     tabMarkdown.setAttribute("aria-selected", markdownActive ? "true" : "false");
@@ -2388,6 +2400,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     jsonPanelEl.hidden = markdownActive;
     formatSectionEl.hidden = !markdownActive;
     outlineSectionTitleEl.textContent = markdownActive ? "Jerarquía" : "Estructura JSON";
+    outlineSectionToggleEl.title = markdownActive ? "Mostrar/ocultar Jerarquía" : "Mostrar/ocultar Estructura JSON";
+    syncOutlineSectionVisibility();
   };
 
   const setActiveDocumentMode = (mode: DocumentMode, announce = false) => {

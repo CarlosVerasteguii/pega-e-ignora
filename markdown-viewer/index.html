@@ -437,13 +437,17 @@
               <div id="json-layout" class="json-layout" data-tree="hidden">
                 <div class="json-pane">
                   <label class="json-pane-title" for="json-text-editor">Texto JSON</label>
-                  <textarea
-                    id="json-text-editor"
-                    class="json-text-editor"
-                    spellcheck="false"
-                    autocapitalize="off"
-                    autocomplete="off"
-                  ></textarea>
+                  <div class="json-editor" aria-label="Editor de texto JSON">
+                    <pre id="json-highlight" class="json-highlight" aria-hidden="true"></pre>
+                    <textarea
+                      id="json-text-editor"
+                      class="json-text-editor"
+                      spellcheck="false"
+                      autocapitalize="off"
+                      autocomplete="off"
+                      wrap="off"
+                    ></textarea>
+                  </div>
                 </div>
                 <div id="json-tree-pane" class="json-pane json-pane-tree" hidden>
                   <div class="json-pane-title">Árbol JSON</div>

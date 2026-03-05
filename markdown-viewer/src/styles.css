@@ -744,6 +744,10 @@ button.icon-only svg {
   overflow: hidden;
 }
 
+.json-pane[hidden] {
+  display: none !important;
+}
+
 .json-pane-title {
   display: block;
   border-bottom: 1px solid var(--border);
@@ -752,6 +756,45 @@ button.icon-only svg {
   font-weight: 850;
   letter-spacing: 0.2px;
   padding: 8px 10px;
+}
+
+.json-editor {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  position: relative;
+}
+
+.json-highlight,
+.json-text-editor {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 10px;
+  font-family: "JetBrains Mono", Consolas, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+}
+
+.json-highlight {
+  display: none;
+  pointer-events: none;
+  background: transparent;
+  color: var(--text);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.json-highlight[data-highlight="on"] {
+  display: block;
+}
+
+.json-highlight::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .json-text-editor {
@@ -763,15 +806,115 @@ button.icon-only svg {
   outline: none;
   background: transparent;
   color: var(--text);
-  font-family: "JetBrains Mono", Consolas, Menlo, monospace;
-  font-size: 13px;
-  line-height: 1.45;
-  padding: 10px;
-  tab-size: 2;
+  caret-color: var(--text);
+}
+
+.json-highlight[data-highlight="on"] + .json-text-editor {
+  color: transparent;
 }
 
 .json-text-editor::selection {
   background: rgb(var(--accent-2-rgb) / 0.35);
+}
+
+.json-pane:focus-within {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 2px var(--surface-tint-soft);
+}
+
+.json-text-editor:focus-visible {
+  outline: none;
+}
+
+.json-token {
+  font-variant-ligatures: none;
+}
+
+.json-key {
+  font-weight: 900;
+  color: var(--accent-2);
+}
+
+.json-key--id {
+  color: var(--accent-1);
+}
+
+.json-key--type {
+  color: var(--accent-3);
+}
+
+.json-key--text {
+  color: var(--accent-4);
+}
+
+.json-key--hash {
+  color: var(--muted);
+}
+
+.json-key--date {
+  color: var(--accent-3);
+}
+
+.json-string {
+  color: var(--accent-1);
+}
+
+.json-string--id {
+  color: var(--accent-2);
+  font-weight: 850;
+}
+
+.json-string--enum {
+  color: var(--accent-3);
+  font-weight: 850;
+}
+
+.json-string--text {
+  color: var(--text);
+}
+
+.json-string--hash {
+  color: var(--muted);
+}
+
+.json-string--date {
+  color: var(--accent-3);
+  font-weight: 850;
+}
+
+.json-string--url {
+  color: var(--link);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+.json-number {
+  color: var(--accent-4);
+  font-weight: 850;
+}
+
+.json-number--id {
+  color: var(--accent-2);
+}
+
+.json-number--date {
+  color: var(--accent-3);
+}
+
+.json-boolean {
+  color: var(--accent-3);
+  font-weight: 850;
+}
+
+.json-null {
+  color: var(--muted);
+  font-style: italic;
+  font-weight: 850;
+}
+
+.json-punct {
+  color: var(--muted);
 }
 
 .json-tree {
@@ -1401,6 +1544,30 @@ button.icon-only svg {
 
 .editor-host .toastui-editor-main {
   min-height: 0;
+}
+
+.editor-host .toastui-editor-defaultUI,
+.editor-host .toastui-editor-main,
+.editor-host .toastui-editor-main-container,
+.editor-host .toastui-editor-ww-container,
+.editor-host .toastui-editor-md-container {
+  width: 100%;
+  min-width: 0;
+}
+
+.editor-host .toastui-editor-main-container {
+  inset: 0;
+}
+
+.editor-host .toastui-editor-ww-container > .toastui-editor,
+.editor-host .toastui-editor-md-container > .toastui-editor,
+.editor-host .toastui-editor-ww-container .toastui-editor-contents,
+.editor-host .toastui-editor-md-container .toastui-editor,
+.editor-host .toastui-editor-md-container .toastui-editor-md-preview,
+.editor-host .toastui-editor-defaultUI .ProseMirror {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
 }
 
 .editor-host .toastui-editor-md-container .toastui-editor,

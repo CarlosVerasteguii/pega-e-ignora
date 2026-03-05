@@ -31,12 +31,14 @@ export type JsonWorkspace = {
 
 export type CreateJsonWorkspaceOptions = {
   textAreaEl: HTMLTextAreaElement;
+  highlightEl?: HTMLElement;
   treeEl: HTMLElement;
   statusEl: HTMLElement;
   prettyBtn: HTMLButtonElement;
   minifyBtn: HTMLButtonElement;
   maxBytes?: number;
   maxNodes?: number;
+  highlightMaxChars?: number;
   treeVisible?: boolean;
   onInform?: (message: string, kind: "info" | "warning" | "error") => void;
 };
@@ -119,6 +121,267 @@ function parseErrorInfo(text: string, error: unknown): ParseErrorInfo {
   return { message, position, line, column };
 }
 
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+type HighlightToken =
+  | { kind: "ws"; raw: string }
+  | { kind: "punct"; raw: string }
+  | { kind: "string"; raw: string; inner: string }
+  | { kind: "number"; raw: string }
+  | { kind: "literal"; raw: "true" | "false" | "null" }
+  | { kind: "other"; raw: string };
+
+const JSON_NUMBER_RE = /^-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?/;
+
+function tokenizeJson(text: string): HighlightToken[] {
+  const tokens: HighlightToken[] = [];
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '"') {
+      let j = i + 1;
+      let escaped = false;
+      while (j < text.length) {
+        const cj = text[j];
+        if (escaped) {
+          escaped = false;
+          j += 1;
+          continue;
+        }
+        if (cj === "\\") {
+          escaped = true;
+          j += 1;
+          continue;
+        }
+        if (cj === '"') {
+          j += 1;
+          break;
+        }
+        j += 1;
+      }
+      const raw = text.slice(i, j);
+      const inner = raw.length >= 2 ? raw.slice(1, raw.endsWith('"') ? -1 : raw.length) : raw;
+      tokens.push({ kind: "string", raw, inner });
+      i = j;
+      continue;
+    }
+
+    if (ch <= " ") {
+      let j = i + 1;
+      while (j < text.length && text[j] <= " ") j += 1;
+      tokens.push({ kind: "ws", raw: text.slice(i, j) });
+      i = j;
+      continue;
+    }
+
+    if (ch === "{" || ch === "}" || ch === "[" || ch === "]" || ch === ":" || ch === ",") {
+      tokens.push({ kind: "punct", raw: ch });
+      i += 1;
+      continue;
+    }
+
+    if (ch === "t" && text.startsWith("true", i)) {
+      tokens.push({ kind: "literal", raw: "true" });
+      i += 4;
+      continue;
+    }
+    if (ch === "f" && text.startsWith("false", i)) {
+      tokens.push({ kind: "literal", raw: "false" });
+      i += 5;
+      continue;
+    }
+    if (ch === "n" && text.startsWith("null", i)) {
+      tokens.push({ kind: "literal", raw: "null" });
+      i += 4;
+      continue;
+    }
+
+    if (ch === "-" || (ch >= "0" && ch <= "9")) {
+      const match = JSON_NUMBER_RE.exec(text.slice(i));
+      if (match) {
+        tokens.push({ kind: "number", raw: match[0] });
+        i += match[0].length;
+        continue;
+      }
+    }
+
+    tokens.push({ kind: "other", raw: ch });
+    i += 1;
+  }
+  return tokens;
+}
+
+function unescapeJsonStringInner(text: string, maxOutputChars = Number.MAX_SAFE_INTEGER): string {
+  let out = "";
+  for (let i = 0; i < text.length; i += 1) {
+    if (out.length >= maxOutputChars) break;
+    const ch = text[i];
+    if (ch !== "\\") {
+      out += ch;
+      continue;
+    }
+    const next = text[i + 1];
+    if (!next) break;
+    if (next === '"' || next === "\\" || next === "/") {
+      out += next;
+      i += 1;
+      continue;
+    }
+    if (next === "b") {
+      out += "\b";
+      i += 1;
+      continue;
+    }
+    if (next === "f") {
+      out += "\f";
+      i += 1;
+      continue;
+    }
+    if (next === "n") {
+      out += "\n";
+      i += 1;
+      continue;
+    }
+    if (next === "r") {
+      out += "\r";
+      i += 1;
+      continue;
+    }
+    if (next === "t") {
+      out += "\t";
+      i += 1;
+      continue;
+    }
+    if (next === "u") {
+      const hex = text.slice(i + 2, i + 6);
+      if (/^[0-9a-fA-F]{4}$/.test(hex)) {
+        out += String.fromCharCode(Number.parseInt(hex, 16));
+        i += 5;
+        continue;
+      }
+    }
+    out += next;
+    i += 1;
+  }
+  return out;
+}
+
+type JsonKeyKind = "id" | "type" | "text" | "hash" | "date" | "other";
+
+function classifyKeyKind(key: string): JsonKeyKind {
+  const k = key.trim().toLowerCase();
+  if (!k) return "other";
+  if (k === "id" || k.endsWith("_id") || k === "uuid") return "id";
+  if (k === "type" || k.endsWith("_type") || k === "kind" || k.endsWith("_kind") || k.includes("status")) return "type";
+  if (k.includes("checksum") || k.includes("hash") || k.includes("sha") || k.includes("md5")) return "hash";
+  if (k.includes("date") || k.includes("timestamp") || k.endsWith("_at")) return "date";
+  if (k.includes("scenario") || k.includes("prompt") || k.includes("notes") || k.includes("message") || k.includes("description") || k.includes("text")) {
+    return "text";
+  }
+  return "other";
+}
+
+function isProbablyUrl(text: string): boolean {
+  return /^(https?:\/\/|mailto:|tel:)/i.test(text.trim());
+}
+
+function buildJsonHighlightHtml(text: string): string {
+  const tokens = tokenizeJson(text);
+  const nextNonWs = new Array<number>(tokens.length).fill(-1);
+  let next = -1;
+  for (let i = tokens.length - 1; i >= 0; i -= 1) {
+    nextNonWs[i] = next;
+    if (tokens[i].kind !== "ws") next = i;
+  }
+
+  let pendingKey: { key: string; kind: JsonKeyKind } | null = null;
+  let lastKey: { key: string; kind: JsonKeyKind; tokenIndex: number } | null = null;
+  let prevNonWsIndex = -1;
+
+  const out: string[] = [];
+
+  const wrap = (classes: string[], raw: string) =>
+    `<span class="${classes.join(" ")}">${escapeHtml(raw)}</span>`;
+
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
+    if (token.kind === "ws") {
+      out.push(escapeHtml(token.raw));
+      continue;
+    }
+
+    if (token.kind === "string") {
+      const nextIndex = nextNonWs[i];
+      const isKey = nextIndex !== -1 && tokens[nextIndex].kind === "punct" && tokens[nextIndex].raw === ":";
+      if (isKey) {
+        const decodedKey = unescapeJsonStringInner(token.inner, 220);
+        const kind = classifyKeyKind(decodedKey);
+        lastKey = { key: decodedKey, kind, tokenIndex: i };
+        const classes = ["json-token", "json-key"];
+        if (kind !== "other") classes.push(`json-key--${kind}`);
+        out.push(wrap(classes, token.raw));
+      } else {
+        const classes = ["json-token", "json-string"];
+        const valuePreview = unescapeJsonStringInner(token.inner, 420);
+        const keyKind = pendingKey?.kind ?? null;
+        if (keyKind === "id") classes.push("json-string--id");
+        if (keyKind === "type") classes.push("json-string--enum");
+        if (keyKind === "text") classes.push("json-string--text");
+        if (keyKind === "hash") classes.push("json-string--hash");
+        if (keyKind === "date") classes.push("json-string--date");
+        if (keyKind === null && isProbablyUrl(valuePreview)) classes.push("json-string--url");
+        out.push(wrap(classes, token.raw));
+        pendingKey = null;
+      }
+      prevNonWsIndex = i;
+      continue;
+    }
+
+    if (token.kind === "number") {
+      const classes = ["json-token", "json-number"];
+      if (pendingKey?.kind === "id") classes.push("json-number--id");
+      if (pendingKey?.kind === "date") classes.push("json-number--date");
+      out.push(wrap(classes, token.raw));
+      pendingKey = null;
+      prevNonWsIndex = i;
+      continue;
+    }
+
+    if (token.kind === "literal") {
+      if (token.raw === "null") {
+        out.push(wrap(["json-token", "json-null"], token.raw));
+      } else {
+        out.push(wrap(["json-token", "json-boolean"], token.raw));
+      }
+      pendingKey = null;
+      prevNonWsIndex = i;
+      continue;
+    }
+
+    if (token.kind === "punct") {
+      out.push(wrap(["json-token", "json-punct"], token.raw));
+      if (token.raw === ":" && lastKey && lastKey.tokenIndex === prevNonWsIndex) {
+        pendingKey = { key: lastKey.key, kind: lastKey.kind };
+        lastKey = null;
+      } else if ((token.raw === "{" || token.raw === "[") && pendingKey) {
+        pendingKey = null;
+      } else if (token.raw === "," || token.raw === "}" || token.raw === "]") {
+        lastKey = null;
+      }
+      prevNonWsIndex = i;
+      continue;
+    }
+
+    out.push(escapeHtml(token.raw));
+    pendingKey = null;
+    prevNonWsIndex = i;
+  }
+
+  return out.join("");
+}
+
 function pathToText(path: JsonPath): string {
   if (path.length === 0) return ROOT_PATH;
   let out = ROOT_PATH;
@@ -181,6 +444,8 @@ function findPathRow(treeEl: HTMLElement, path: string): HTMLElement | null {
 export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWorkspace {
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
   const maxNodes = options.maxNodes ?? DEFAULT_MAX_NODES;
+  const highlightEl = options.highlightEl ?? null;
+  const highlightMaxChars = Math.max(20_000, options.highlightMaxChars ?? 260_000);
   const textAreaEl = options.textAreaEl;
   const treeEl = options.treeEl;
   const statusEl = options.statusEl;
@@ -205,6 +470,37 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
   let textInputTimer: number | null = null;
   let analysisTimer: number | null = null;
   const encoder = new TextEncoder();
+  let highlightTimer: number | null = null;
+  let lastHighlightText = "";
+
+  const syncHighlightScroll = () => {
+    if (!highlightEl) return;
+    highlightEl.scrollTop = textAreaEl.scrollTop;
+    highlightEl.scrollLeft = textAreaEl.scrollLeft;
+  };
+
+  const renderHighlight = () => {
+    if (!highlightEl) return;
+    if (text === lastHighlightText) return;
+    lastHighlightText = text;
+    if (text.length > highlightMaxChars) {
+      highlightEl.dataset.highlight = "off";
+      highlightEl.textContent = "";
+      return;
+    }
+    highlightEl.dataset.highlight = "on";
+    highlightEl.innerHTML = buildJsonHighlightHtml(text);
+    syncHighlightScroll();
+  };
+
+  const scheduleHighlight = () => {
+    if (!highlightEl) return;
+    if (highlightTimer !== null) window.clearTimeout(highlightTimer);
+    highlightTimer = window.setTimeout(() => {
+      highlightTimer = null;
+      renderHighlight();
+    }, 70);
+  };
 
   const scheduleAnalysis = () => {
     if (!treeVisible) return;
@@ -798,6 +1094,7 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
     if (textAreaEl.value !== text) textAreaEl.value = text;
     isApplyingText = false;
     parseText(reason);
+    scheduleHighlight();
     if (emitChange) notify();
   };
 
@@ -810,6 +1107,8 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
       if (isApplyingText) return;
       text = textAreaEl.value;
       parseText("input");
+      scheduleHighlight();
+      syncHighlightScroll();
       notify();
     }, 170);
   };
@@ -847,6 +1146,7 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
   };
 
   textAreaEl.addEventListener("input", scheduleParseFromInput);
+  textAreaEl.addEventListener("scroll", syncHighlightScroll, { passive: true });
   prettyBtn.addEventListener("click", () => {
     pretty();
   });
