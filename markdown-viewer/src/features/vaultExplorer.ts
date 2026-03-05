@@ -20,6 +20,8 @@ export type VaultExplorerOptions = {
   vaultDir: string;
   notesDir: string;
   title?: string;
+  allowedExtensions?: string[];
+  defaultExtension?: "md" | "json";
 };
 
 function ensureStyles(): void {
@@ -197,7 +199,19 @@ async function ensureNotesDir(notesDir: string): Promise<void> {
   await mkdir(notesDir, { recursive: true });
 }
 
-async function readDirNodes(dirPath: string): Promise<TreeNode[]> {
+function normalizeExtensions(extensions: string[] | undefined): Set<string> {
+  const fallback = ["md", "markdown"];
+  const source = extensions && extensions.length > 0 ? extensions : fallback;
+  return new Set(source.map((ext) => ext.trim().toLowerCase().replace(/^\./, "")).filter(Boolean));
+}
+
+function fileAllowed(name: string, allowedExtensions: Set<string>): boolean {
+  const dot = name.lastIndexOf(".");
+  if (dot === -1) return false;
+  return allowedExtensions.has(name.slice(dot + 1).toLowerCase());
+}
+
+async function readDirNodes(dirPath: string, allowedExtensions: Set<string>): Promise<TreeNode[]> {
   const entries = await readDir(dirPath);
   const nodes: TreeNode[] = [];
   for (const entry of entries) {
@@ -214,6 +228,7 @@ async function readDirNodes(dirPath: string): Promise<TreeNode[]> {
       continue;
     }
     if (entry.isFile) {
+      if (!fileAllowed(entry.name, allowedExtensions)) continue;
       nodes.push({ kind: "file", name: entry.name, path: fullPath });
     }
   }
@@ -224,11 +239,12 @@ async function readDirNodes(dirPath: string): Promise<TreeNode[]> {
   return nodes;
 }
 
-function isMarkdownFile(name: string): boolean {
-  return /\.(md|markdown)$/i.test(name);
-}
-
-async function walkFiles(dirPath: string, token: { current: number }, tokenValue: number): Promise<TreeNode[]> {
+async function walkFiles(
+  dirPath: string,
+  token: { current: number },
+  tokenValue: number,
+  allowedExtensions: Set<string>,
+): Promise<TreeNode[]> {
   if (token.current !== tokenValue) return [];
   const entries = await readDir(dirPath);
   const out: TreeNode[] = [];
@@ -236,10 +252,10 @@ async function walkFiles(dirPath: string, token: { current: number }, tokenValue
     if (token.current !== tokenValue) return out;
     const fullPath = await join(dirPath, entry.name);
     if (entry.isDirectory) {
-      out.push(...(await walkFiles(fullPath, token, tokenValue)));
+      out.push(...(await walkFiles(fullPath, token, tokenValue, allowedExtensions)));
       continue;
     }
-    if (entry.isFile && isMarkdownFile(entry.name)) {
+    if (entry.isFile && fileAllowed(entry.name, allowedExtensions)) {
       out.push({ kind: "file", name: entry.name, path: fullPath });
     }
   }
@@ -249,6 +265,8 @@ async function walkFiles(dirPath: string, token: { current: number }, tokenValue
 export async function openVaultExplorer(options: VaultExplorerOptions): Promise<string | null> {
   ensureStyles();
   await ensureNotesDir(options.notesDir);
+  const allowedExtensions = normalizeExtensions(options.allowedExtensions);
+  const defaultExtension = options.defaultExtension ?? "md";
 
   const overlay = document.createElement("div");
   overlay.className = "vei-overlay";
@@ -286,8 +304,8 @@ export async function openVaultExplorer(options: VaultExplorerOptions): Promise<
   const newNoteBtn = document.createElement("button");
   newNoteBtn.type = "button";
   newNoteBtn.className = "vei-close";
-  newNoteBtn.textContent = "Nueva nota";
-  newNoteBtn.title = "Crear una nota en la carpeta de notas";
+  newNoteBtn.textContent = "Nuevo archivo";
+  newNoteBtn.title = "Crear un archivo en la carpeta de notas";
 
   const newFolderBtn = document.createElement("button");
   newFolderBtn.type = "button";
@@ -308,7 +326,7 @@ export async function openVaultExplorer(options: VaultExplorerOptions): Promise<
 
   const hintLeft = document.createElement("div");
   hintLeft.className = "vei-hint";
-  hintLeft.textContent = "Carpetas y notas";
+  hintLeft.textContent = "Carpetas y archivos";
 
   const hintRight = document.createElement("div");
   hintRight.className = "vei-hint";
@@ -382,13 +400,13 @@ export async function openVaultExplorer(options: VaultExplorerOptions): Promise<
         btn.addEventListener("click", async () => {
           node.expanded = !node.expanded;
           if (node.expanded && !node.loaded) {
-            node.children = await readDirNodes(node.path);
+            node.children = await readDirNodes(node.path, allowedExtensions);
             node.loaded = true;
           }
           renderTree();
         });
       } else {
-        btn.title = "Abrir nota";
+        btn.title = "Abrir archivo";
         btn.addEventListener("click", () => done(node.path));
       }
 
@@ -436,7 +454,7 @@ export async function openVaultExplorer(options: VaultExplorerOptions): Promise<
   };
 
   const refreshRoot = async () => {
-    root.children = await readDirNodes(root.path);
+    root.children = await readDirNodes(root.path, allowedExtensions);
     root.loaded = true;
     renderTree();
   };
@@ -454,7 +472,7 @@ export async function openVaultExplorer(options: VaultExplorerOptions): Promise<
       token.current += 1;
       const t = token.current;
       setResults([], "Buscando…");
-      const files = await walkFiles(options.notesDir, token, t);
+      const files = await walkFiles(options.notesDir, token, t, allowedExtensions);
       if (token.current !== t) return;
       const filtered = files.filter((n) => n.kind === "file" && n.name.toLowerCase().includes(q));
       setResults(filtered, `${filtered.length} resultado(s)`);
@@ -470,17 +488,26 @@ export async function openVaultExplorer(options: VaultExplorerOptions): Promise<
   };
 
   const createNote = async () => {
-    const name = window.prompt("Nombre de nota (sin extensión):", "Nueva nota");
+    const name = window.prompt(
+      "Nombre de archivo (sin extensión):",
+      defaultExtension === "json" ? "Nuevo JSON" : "Nueva nota",
+    );
     if (!name) return;
     const safe = name.trim();
     if (!safe) return;
-    const filename = safe.toLowerCase().endsWith(".md") ? safe : `${safe}.md`;
+    const hasExtension = /\.[a-z0-9]+$/i.test(safe);
+    const filename = hasExtension ? safe : `${safe}.${defaultExtension}`;
+    if (!fileAllowed(filename, allowedExtensions)) {
+      setResults([], "Extensión no permitida");
+      return;
+    }
     const path = await join(options.notesDir, filename);
     if (await exists(path)) {
       setResults([{ kind: "file", name: filename, path }], "Ya existe");
       return;
     }
-    await writeTextFile(path, `# ${safe}\n\n`);
+    const template = defaultExtension === "json" ? "{\n  \"nuevo\": true\n}" : `# ${safe}\n\n`;
+    await writeTextFile(path, template);
     await refreshRoot();
     setResults([{ kind: "file", name: filename, path }], "Creada");
   };

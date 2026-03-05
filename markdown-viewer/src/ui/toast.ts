@@ -1,4 +1,5 @@
 export type ToastKind = "info" | "success" | "warning" | "error";
+export type ToastPosition = "bottom-right" | "top-right";
 
 export type ToastShowOptions = {
   id?: string;
@@ -6,6 +7,7 @@ export type ToastShowOptions = {
   message: string;
   kind?: ToastKind;
   durationMs?: number;
+  sticky?: boolean;
   closeLabel?: string;
 };
 
@@ -25,6 +27,9 @@ export type ToastHost = {
 export type ToastHostOptions = {
   maxToasts?: number;
   defaultDurationMs?: number;
+  durationsByKind?: Partial<Record<ToastKind, number>>;
+  position?: ToastPosition;
+  reducedMotion?: () => boolean;
   mount?: HTMLElement;
 };
 
@@ -40,13 +45,82 @@ function clampNumber(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function toastKindLabel(kind: ToastKind): string {
+  if (kind === "success") return "Exito";
+  if (kind === "warning") return "Aviso";
+  if (kind === "error") return "Error";
+  return "Info";
+}
+
+function toastIconSvg(kind: ToastKind): string {
+  if (kind === "success") {
+    return `
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8" />
+        <path d="m8.5 12 2.2 2.2 4.8-4.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    `.trim();
+  }
+  if (kind === "warning") {
+    return `
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 3.5 21 19H3L12 3.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+        <path d="M12 9v4.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        <circle cx="12" cy="16.6" r="1" fill="currentColor" />
+      </svg>
+    `.trim();
+  }
+  if (kind === "error") {
+    return `
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M9 3h6l6 6v6l-6 6H9l-6-6V9l6-6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+        <path d="m9.6 9.6 4.8 4.8M14.4 9.6l-4.8 4.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      </svg>
+    `.trim();
+  }
+  return `
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8" />
+      <path d="M12 10.4V16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <circle cx="12" cy="7.6" r="1" fill="currentColor" />
+    </svg>
+  `.trim();
+}
+
+function setToastKind(toastEl: HTMLElement, kind: ToastKind): void {
+  toastEl.className = `toast toast--${kind}`;
+  const icon = toastEl.querySelector<HTMLElement>(".toast__icon");
+  if (icon) icon.innerHTML = toastIconSvg(kind);
+  const assistive = toastEl.querySelector<HTMLElement>(".toast__assistive");
+  if (assistive) assistive.textContent = `${toastKindLabel(kind)}. `;
+}
+
+function restartProgressAnimation(toastEl: HTMLElement): void {
+  const progress = toastEl.querySelector<HTMLElement>(".toast__progress-bar");
+  if (!progress) return;
+  progress.style.animation = "none";
+  void progress.offsetWidth;
+  progress.style.removeProperty("animation");
+}
+
 export function createToastHost(options: ToastHostOptions = {}): ToastHost {
   const maxToasts = Math.floor(clampNumber(options.maxToasts ?? 4, 1, 10));
-  const defaultDurationMs = Math.floor(clampNumber(options.defaultDurationMs ?? 3200, 800, 30_000));
+  const defaultDurationMs = Math.floor(clampNumber(options.defaultDurationMs ?? 2600, 800, 30_000));
+  const durationsByKind: Record<ToastKind, number> = {
+    info: Math.floor(clampNumber(options.durationsByKind?.info ?? defaultDurationMs, 800, 30_000)),
+    success: Math.floor(clampNumber(options.durationsByKind?.success ?? defaultDurationMs, 800, 30_000)),
+    warning: Math.floor(clampNumber(options.durationsByKind?.warning ?? defaultDurationMs, 800, 30_000)),
+    error: Math.floor(clampNumber(options.durationsByKind?.error ?? defaultDurationMs, 800, 30_000)),
+  };
+  const position: ToastPosition = options.position === "top-right" ? "top-right" : "bottom-right";
+  const reducedMotionEnabled = () => options.reducedMotion?.() ?? prefersReducedMotion();
   const mount = options.mount ?? document.body;
 
   const host = document.createElement("div");
   host.className = "toast-host";
+  host.dataset.position = position;
+  host.setAttribute("role", "region");
+  host.setAttribute("aria-label", "Notificaciones");
   host.setAttribute("aria-live", "polite");
   host.setAttribute("aria-relevant", "additions text");
 
@@ -59,6 +133,7 @@ export function createToastHost(options: ToastHostOptions = {}): ToastHost {
     remainingMs: number;
     lastStartAt: number;
     paused: boolean;
+    sticky: boolean;
   };
 
   const toasts: ToastRuntime[] = [];
@@ -78,7 +153,7 @@ export function createToastHost(options: ToastHostOptions = {}): ToastHost {
     toasts.splice(idx, 1);
     toastById.delete(id);
 
-    if (prefersReducedMotion()) {
+    if (reducedMotionEnabled()) {
       removeToastEl(runtime.el);
       return;
     }
@@ -94,14 +169,18 @@ export function createToastHost(options: ToastHostOptions = {}): ToastHost {
   };
 
   const scheduleAutoDismiss = (runtime: ToastRuntime) => {
+    if (runtime.sticky) return;
     if (runtime.timeoutId) window.clearTimeout(runtime.timeoutId);
     runtime.lastStartAt = Date.now();
+    runtime.el.dataset.paused = "false";
     runtime.timeoutId = window.setTimeout(() => dismiss(runtime.id), runtime.remainingMs);
   };
 
   const pause = (runtime: ToastRuntime) => {
+    if (runtime.sticky) return;
     if (runtime.paused) return;
     runtime.paused = true;
+    runtime.el.dataset.paused = "true";
     if (runtime.timeoutId) {
       window.clearTimeout(runtime.timeoutId);
       runtime.timeoutId = null;
@@ -111,8 +190,10 @@ export function createToastHost(options: ToastHostOptions = {}): ToastHost {
   };
 
   const resume = (runtime: ToastRuntime) => {
+    if (runtime.sticky) return;
     if (!runtime.paused) return;
     runtime.paused = false;
+    runtime.el.dataset.paused = "false";
     if (runtime.remainingMs <= 0) {
       dismiss(runtime.id);
       return;
@@ -122,14 +203,16 @@ export function createToastHost(options: ToastHostOptions = {}): ToastHost {
 
   const show = (opts: ToastShowOptions): ToastHandle => {
     const kind: ToastKind = opts.kind ?? "info";
-    const durationMs = Math.floor(clampNumber(opts.durationMs ?? defaultDurationMs, 800, 30_000));
+    const sticky = opts.sticky ?? false;
+    const durationMs = Math.floor(clampNumber(opts.durationMs ?? durationsByKind[kind], 800, 30_000));
     const desiredId = opts.id?.trim();
 
     if (desiredId) {
       const existing = toastById.get(desiredId);
       if (existing) {
-        existing.el.className = `toast toast--${kind}`;
+        setToastKind(existing.el, kind);
         existing.el.setAttribute("role", kind === "error" ? "alert" : "status");
+        existing.el.dataset.sticky = sticky ? "true" : "false";
 
         const content = existing.el.querySelector<HTMLElement>(".toast__content");
         const messageEl = content?.querySelector<HTMLElement>(".toast__message") ?? null;
@@ -163,12 +246,24 @@ export function createToastHost(options: ToastHostOptions = {}): ToastHost {
           }
         }
 
-        existing.remainingMs = durationMs;
-        if (!existing.paused) {
-          scheduleAutoDismiss(existing);
+        existing.sticky = sticky;
+        if (sticky) {
+          if (existing.timeoutId) {
+            window.clearTimeout(existing.timeoutId);
+            existing.timeoutId = null;
+          }
+          existing.paused = false;
+          existing.el.dataset.paused = "false";
         } else {
-          existing.timeoutId = null;
-          existing.lastStartAt = Date.now();
+          existing.remainingMs = durationMs;
+          existing.el.style.setProperty("--toast-duration-ms", `${durationMs}ms`);
+          restartProgressAnimation(existing.el);
+          if (!existing.paused) {
+            scheduleAutoDismiss(existing);
+          } else {
+            existing.timeoutId = null;
+            existing.lastStartAt = Date.now();
+          }
         }
 
         const toastIndex = toasts.findIndex((t) => t.id === desiredId);
@@ -187,13 +282,26 @@ export function createToastHost(options: ToastHostOptions = {}): ToastHost {
     const toastEl = document.createElement("div");
     toastEl.className = `toast toast--${kind}`;
     toastEl.dataset.state = "enter";
+    toastEl.dataset.paused = "false";
+    toastEl.dataset.sticky = sticky ? "true" : "false";
     toastEl.setAttribute("aria-atomic", "true");
+    toastEl.style.setProperty("--toast-duration-ms", `${durationMs}ms`);
 
     const role = kind === "error" ? "alert" : "status";
     toastEl.setAttribute("role", role);
 
+    const icon = document.createElement("div");
+    icon.className = "toast__icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.innerHTML = toastIconSvg(kind);
+
     const content = document.createElement("div");
     content.className = "toast__content";
+
+    const assistive = document.createElement("span");
+    assistive.className = "toast__assistive";
+    assistive.textContent = `${toastKindLabel(kind)}. `;
+    content.append(assistive);
 
     if (opts.title) {
       const title = document.createElement("div");
@@ -211,11 +319,23 @@ export function createToastHost(options: ToastHostOptions = {}): ToastHost {
     closeBtn.type = "button";
     closeBtn.className = "toast__close";
     closeBtn.setAttribute("aria-label", opts.closeLabel ?? "Cerrar notificación");
-    closeBtn.textContent = "×";
+    closeBtn.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+      </svg>
+    `.trim();
 
     closeBtn.addEventListener("click", () => dismiss(id));
 
-    toastEl.append(content, closeBtn);
+    const progress = document.createElement("div");
+    progress.className = "toast__progress";
+    progress.setAttribute("aria-hidden", "true");
+
+    const progressBar = document.createElement("span");
+    progressBar.className = "toast__progress-bar";
+    progress.append(progressBar);
+
+    toastEl.append(icon, content, closeBtn, progress);
     host.append(toastEl);
 
     const runtime: ToastRuntime = {
@@ -225,6 +345,7 @@ export function createToastHost(options: ToastHostOptions = {}): ToastHost {
       remainingMs: durationMs,
       lastStartAt: Date.now(),
       paused: false,
+      sticky,
     };
 
     toastEl.addEventListener("mouseenter", () => pause(runtime));
@@ -236,7 +357,7 @@ export function createToastHost(options: ToastHostOptions = {}): ToastHost {
     toastById.set(id, runtime);
     while (toasts.length > maxToasts) dismiss(toasts[0].id);
 
-    if (!prefersReducedMotion()) {
+    if (!reducedMotionEnabled()) {
       requestAnimationFrame(() => {
         toastEl.dataset.state = "open";
       });
@@ -244,7 +365,7 @@ export function createToastHost(options: ToastHostOptions = {}): ToastHost {
       toastEl.dataset.state = "open";
     }
 
-    scheduleAutoDismiss(runtime);
+    if (!sticky) scheduleAutoDismiss(runtime);
 
     return { id, dismiss: () => dismiss(id) };
   };

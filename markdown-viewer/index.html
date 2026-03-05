@@ -16,61 +16,203 @@
           <div id="status" class="brand-subtitle">Listo</div>
         </div>
 
-        <div class="actions">
-          <button id="btn-new" type="button" title="Nuevo (Ctrl+N)">
-            Nuevo
-          </button>
-          <button id="btn-open" type="button" title="Abrir (Ctrl+O)">
-            Abrir
-          </button>
-          <button id="btn-save" type="button" title="Guardar (Ctrl+S)">
-            Guardar
-          </button>
-          <button
-            id="btn-save-as"
-            type="button"
-            title="Guardar como (Ctrl+Shift+S)"
-          >
-            Guardar como
-          </button>
-          <button id="btn-theme" type="button" title="Cambiar tema">
-            Modo oscuro
-          </button>
-          <button id="btn-read-mode" type="button" title="Modo lectura">
-            Lectura
-          </button>
-          <button id="btn-spellcheck" type="button" title="Ortografía">
-            Ortografía: Sí
-          </button>
-          <button
-            id="btn-settings"
-            type="button"
-            class="icon-only"
-            title="Configuración"
-            aria-label="Configuración"
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
+        <div class="actions" role="toolbar" aria-label="Acciones">
+          <div class="action-group" role="group" aria-label="Archivo">
+            <button id="btn-new" type="button" class="topbar-btn" title="Nuevo (Ctrl+N)">
+              <svg
+                class="btn-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+                <path d="M12 18v-6" />
+                <path d="M9 15h6" />
+              </svg>
+              <span class="btn-label">Nuevo</span>
+            </button>
+            <button id="btn-open" type="button" class="topbar-btn" title="Abrir (Ctrl+O)">
+              <svg
+                class="btn-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 7a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
+                <path d="M3 10h18" />
+              </svg>
+              <span class="btn-label">Abrir</span>
+            </button>
+            <button id="btn-save" type="button" class="topbar-btn" title="Guardar (Ctrl+S)">
+              <svg
+                class="btn-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
+                <path d="M17 21v-8H7v8" />
+                <path d="M7 3v5h8" />
+              </svg>
+              <span class="btn-label">Guardar</span>
+            </button>
+            <button id="btn-save-as" type="button" class="topbar-btn" title="Guardar como (Ctrl+Shift+S)">
+              <svg
+                class="btn-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+              <span class="btn-label">Guardar como</span>
+            </button>
+          </div>
+
+          <div class="action-group" role="group" aria-label="Vista">
+            <button
+              id="btn-theme"
+              type="button"
+              class="topbar-btn topbar-toggle topbar-theme icon-only"
+              title="Cambiar a tema oscuro"
+              aria-label="Cambiar a tema oscuro"
+              aria-pressed="false"
+              data-mode="light"
             >
-              <path
-                d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
-              />
-              <path
-                d="M19.4 15a7.9 7.9 0 0 0 .1-1l2-1.2-2-3.4-2.3.8a7.5 7.5 0 0 0-.9-.5L14.8 6h-4l-.5 2.7a7.5 7.5 0 0 0-.9.5L7.1 8.4l-2 3.4 2 1.2a7.9 7.9 0 0 0 .1 1 7.9 7.9 0 0 0-.1 1l-2 1.2 2 3.4 2.3-.8c.3.2.6.4.9.5L10.8 22h4l.5-2.7c.3-.1.6-.3.9-.5l2.3.8 2-3.4-2-1.2a7.9 7.9 0 0 0-.1-1Z"
-              />
-            </svg>
-          </button>
-          <button id="btn-open-vault" type="button" title="Abrir carpeta">
-            Carpeta
-          </button>
+              <svg
+                class="btn-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <g class="theme-icon-moon">
+                  <path d="M12 3a7 7 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+                </g>
+                <g class="theme-icon-sun">
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2" />
+                  <path d="M12 20v2" />
+                  <path d="M4.93 4.93l1.41 1.41" />
+                  <path d="M17.66 17.66l1.41 1.41" />
+                  <path d="M2 12h2" />
+                  <path d="M20 12h2" />
+                  <path d="M4.93 19.07l1.41-1.41" />
+                  <path d="M17.66 6.34l1.41-1.41" />
+                </g>
+              </svg>
+              <span class="btn-label">Tema</span>
+            </button>
+            <button
+              id="btn-read-mode"
+              type="button"
+              class="topbar-btn topbar-toggle"
+              title="Modo lectura"
+              aria-pressed="false"
+            >
+              <svg
+                class="btn-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M2 4h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2Z" />
+                <path d="M22 4h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7Z" />
+              </svg>
+              <span class="btn-label">Lectura</span>
+            </button>
+            <button
+              id="btn-spellcheck"
+              type="button"
+              class="topbar-btn topbar-toggle"
+              title="Ortografía"
+              aria-pressed="false"
+            >
+              <svg
+                class="btn-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="m9 12 2 2 4-4" />
+              </svg>
+              <span class="btn-label">Ortografía: Sí</span>
+            </button>
+          </div>
+
+          <div class="action-group" role="group" aria-label="Preferencias">
+            <button
+              id="btn-settings"
+              type="button"
+              class="topbar-btn icon-only"
+              title="Configuración"
+              aria-label="Configuración"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+            >
+              <svg
+                class="btn-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path
+                  d="M9.6 3.6h4.8l.7 2.2 2.2.9 2.1-1.1 2.4 4.1-1.7 1.6.1 2.4 1.7 1.6-2.4 4.1-2.1-1.1-2.2.9-.7 2.2H9.6l-.7-2.2-2.2-.9-2.1 1.1-2.4-4.1 1.7-1.6-.1-2.4-1.7-1.6 2.4-4.1 2.1 1.1 2.2-.9.7-2.2Z"
+                />
+                <circle cx="12" cy="12" r="3.1" />
+              </svg>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -210,11 +352,105 @@
       <main class="main">
         <section class="pane pane-workspace">
           <div class="pane-header">
-            <div class="pane-title">Markdown</div>
+            <div class="workspace-tabs" role="tablist" aria-label="Tipo de documento">
+              <button
+                id="tab-markdown"
+                class="workspace-tab"
+                type="button"
+                role="tab"
+                aria-selected="true"
+                aria-controls="workspace-markdown-panel"
+                tabindex="0"
+              >
+                Markdown
+              </button>
+              <button
+                id="tab-json"
+                class="workspace-tab"
+                type="button"
+                role="tab"
+                aria-selected="false"
+                aria-controls="workspace-json-panel"
+                tabindex="-1"
+              >
+                JSON
+              </button>
+            </div>
             <div id="workspace-meta" class="pane-meta"></div>
           </div>
           <div class="workspace workspace-single">
-            <div id="editor" class="editor-host"></div>
+            <section
+              id="workspace-markdown-panel"
+              class="workspace-panel workspace-panel-active"
+              role="tabpanel"
+              aria-labelledby="tab-markdown"
+            >
+              <div id="editor" class="editor-host"></div>
+            </section>
+
+            <section
+              id="workspace-json-panel"
+              class="workspace-panel workspace-panel-json"
+              role="tabpanel"
+              aria-labelledby="tab-json"
+              hidden
+            >
+              <div class="json-toolbar" role="group" aria-label="Acciones JSON">
+                <button id="btn-json-pretty" type="button" class="topbar-btn">
+                  <span class="btn-label">Pretty (2 espacios)</span>
+                </button>
+                <button id="btn-json-minify" type="button" class="topbar-btn">
+                  <span class="btn-label">Minify</span>
+                </button>
+                <button
+                  id="btn-json-tree-toggle"
+                  type="button"
+                  class="topbar-btn topbar-toggle"
+                  title="Mostrar árbol JSON"
+                  aria-label="Mostrar árbol JSON"
+                  aria-pressed="false"
+                >
+                  <svg
+                    class="btn-icon"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M10 3h4v4h-4V3Z" />
+                    <path d="M4 17h4v4H4v-4Z" />
+                    <path d="M16 17h4v4h-4v-4Z" />
+                    <path d="M12 7v5" />
+                    <path d="M6 17v-2a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v2" />
+                  </svg>
+                  <span class="btn-label">Árbol</span>
+                </button>
+                <div id="json-parse-status" class="json-parse-status" role="status" aria-live="polite">
+                  JSON válido
+                </div>
+              </div>
+              <div id="json-layout" class="json-layout" data-tree="hidden">
+                <div class="json-pane">
+                  <label class="json-pane-title" for="json-text-editor">Texto JSON</label>
+                  <textarea
+                    id="json-text-editor"
+                    class="json-text-editor"
+                    spellcheck="false"
+                    autocapitalize="off"
+                    autocomplete="off"
+                  ></textarea>
+                </div>
+                <div id="json-tree-pane" class="json-pane json-pane-tree" hidden>
+                  <div class="json-pane-title">Árbol JSON</div>
+                  <div id="json-tree" class="json-tree" role="tree" aria-label="Árbol JSON editable"></div>
+                </div>
+              </div>
+            </section>
           </div>
         </section>
       </main>
@@ -269,6 +505,216 @@
               role="radiogroup"
               aria-label="Elegir tema de la app"
             ></div>
+          </div>
+
+          <div class="settings-section" role="group" aria-label="Vault">
+            <div class="settings-section-header">
+              <div class="settings-section-title">Vault</div>
+              <div id="vault-notes-path" class="settings-section-subtitle">—</div>
+            </div>
+            <div class="settings-actions">
+              <button id="btn-explore-vault" type="button" class="settings-action" title="Explorar notas">
+                <svg
+                  class="btn-icon"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m21 21-4.3-4.3" />
+                </svg>
+                <span>Explorar notas…</span>
+              </button>
+              <button id="btn-open-vault" type="button" class="settings-action" title="Abrir carpeta de notas">
+                <svg
+                  class="btn-icon"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2v-9Z"
+                  />
+                </svg>
+                <span>Abrir carpeta de notas</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="settings-section" role="group" aria-label="Comportamiento">
+            <div class="settings-section-header">
+              <div class="settings-section-title">Comportamiento</div>
+              <div class="settings-section-subtitle">Guardado y edición</div>
+            </div>
+            <div class="settings-actions">
+              <button
+                id="btn-autosave"
+                type="button"
+                class="settings-action settings-toggle"
+                aria-pressed="true"
+                title="Guardar en scratch.md mientras editas"
+              >
+                <svg
+                  class="btn-icon"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
+                  <path d="M17 21v-8H7v8" />
+                  <path d="M7 3v5h8" />
+                </svg>
+                <span>Auto-guardado: Sí</span>
+              </button>
+              <button
+                id="btn-reset-preferences"
+                type="button"
+                class="settings-action"
+                title="Restablecer ajustes de la app"
+              >
+                <svg
+                  class="btn-icon"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 12a9 9 0 1 0 3-6.7" />
+                  <path d="M3 3v6h6" />
+                </svg>
+                <span>Restablecer ajustes…</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="settings-section" role="group" aria-label="Notificaciones y UX">
+            <div class="settings-section-header">
+              <div class="settings-section-title">Notificaciones y UX</div>
+              <div class="settings-section-subtitle">Toasts y animaciones</div>
+            </div>
+
+            <div class="settings-field">
+              <div class="settings-field-row">
+                <div class="settings-field-label">Perfil de toasts</div>
+                <div id="toast-profile-selected-name" class="settings-field-value">—</div>
+              </div>
+              <div class="settings-choice-group" role="radiogroup" aria-label="Perfil de notificaciones">
+                <button
+                  id="btn-toast-profile-balanced"
+                  type="button"
+                  class="settings-action settings-choice"
+                  role="radio"
+                  aria-checked="false"
+                >
+                  <span>Rápido balanceado</span>
+                </button>
+                <button
+                  id="btn-toast-profile-standard"
+                  type="button"
+                  class="settings-action settings-choice"
+                  role="radio"
+                  aria-checked="false"
+                >
+                  <span>Estándar</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="settings-field">
+              <div class="settings-field-row">
+                <div class="settings-field-label">Posición</div>
+                <div id="toast-position-selected-name" class="settings-field-value">—</div>
+              </div>
+              <div class="settings-choice-group" role="radiogroup" aria-label="Posición de notificaciones">
+                <button
+                  id="btn-toast-position-bottom"
+                  type="button"
+                  class="settings-action settings-choice"
+                  role="radio"
+                  aria-checked="false"
+                >
+                  <span>Inferior derecha</span>
+                </button>
+                <button
+                  id="btn-toast-position-top"
+                  type="button"
+                  class="settings-action settings-choice"
+                  role="radio"
+                  aria-checked="false"
+                >
+                  <span>Superior derecha</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="settings-actions">
+              <button
+                id="btn-reduce-motion"
+                type="button"
+                class="settings-action settings-toggle"
+                aria-pressed="false"
+                title="Reducir transiciones y animaciones visuales"
+              >
+                <svg
+                  class="btn-icon"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M4 12c0-4.4 3.6-8 8-8" />
+                  <path d="M20 12c0 4.4-3.6 8-8 8" />
+                  <path d="M8 10 4 12l4 2" />
+                  <path d="m16 14 4-2-4-2" />
+                </svg>
+                <span>Reducir animaciones: No</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="settings-section" role="group" aria-label="Atajos">
+            <div class="settings-section-header">
+              <div class="settings-section-title">Atajos</div>
+              <div class="settings-section-subtitle">Teclado</div>
+            </div>
+            <ul class="settings-list">
+              <li><kbd>Ctrl+K</kbd> Comandos</li>
+              <li><kbd>Ctrl+N</kbd> Nuevo</li>
+              <li><kbd>Ctrl+O</kbd> Abrir…</li>
+              <li><kbd>Ctrl+S</kbd> Guardar</li>
+              <li><kbd>Ctrl+Shift+S</kbd> Guardar como…</li>
+              <li><kbd>Ctrl+F</kbd> Buscar</li>
+              <li><kbd>Ctrl+H</kbd> Reemplazar</li>
+              <li><kbd>Ctrl+rueda</kbd> Zoom</li>
+            </ul>
           </div>
         </div>
       </div>

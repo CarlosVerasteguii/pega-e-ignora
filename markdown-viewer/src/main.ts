@@ -7,9 +7,18 @@ import { exists, mkdir, readTextFile, remove, rename, writeTextFile } from "@tau
 import { confirm, message, open as dialogOpen, save as dialogSave } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { openVaultExplorer } from "./features/vaultExplorer";
+import { createJsonWorkspace, type JsonWorkspace } from "./features/jsonWorkspace";
 import { createCommandPalette, type CommandPaletteAction } from "./ui/commandPalette";
 import { createFindReplace } from "./ui/findReplace";
-import { createToastHost } from "./ui/toast";
+import { createToastHost, type ToastKind, type ToastPosition, type ToastShowOptions } from "./ui/toast";
+import {
+  UI_PREF_KEYS,
+  type ToastProfile,
+  readUiPreferences,
+  writeReduceMotion,
+  writeToastPosition,
+  writeToastProfile,
+} from "./ui/uiPreferences";
 
 type HistoryItem = {
   path: string;
@@ -25,6 +34,7 @@ type VaultPaths = {
 };
 
 type AppTheme = "light" | "dark";
+type DocumentMode = "markdown" | "json";
 type AccentPalette =
   | "caramelo"
   | "oceano"
@@ -107,6 +117,9 @@ const TYPOGRAPHY_STORAGE_KEY = "markdown-viewer.typography";
 const SPELLCHECK_STORAGE_KEY = "markdown-viewer.spellcheck";
 const READ_MODE_STORAGE_KEY = "markdown-viewer.readMode";
 const SIDEBAR_SECTIONS_STORAGE_KEY = "markdown-viewer.sidebarSections";
+const AUTOSAVE_STORAGE_KEY = "markdown-viewer.autosaveScratch";
+const DOCUMENT_MODE_STORAGE_KEY = "markdown-viewer.documentMode";
+const JSON_TREE_VISIBLE_STORAGE_KEY = "markdown-viewer.jsonTreeVisible";
 const MIN_WORKSPACE_ZOOM = 0.8;
 const MAX_WORKSPACE_ZOOM = 1.8;
 const WORKSPACE_ZOOM_STEP = 0.05;
@@ -124,6 +137,19 @@ const DEFAULT_TYPOGRAPHY: TypographySettings = {
   fontSizePx: 14,
   lineHeight: 1.5,
   paragraphSpacingEm: 0.22,
+};
+
+const TOAST_DURATIONS_BY_PROFILE: Record<ToastProfile, Partial<Record<ToastKind, number>>> = {
+  "balanced-fast": {
+    info: 1800,
+    success: 1800,
+    warning: 2400,
+  },
+  standard: {
+    info: 2600,
+    success: 2600,
+    warning: 3200,
+  },
 };
 
 const ACCENT_PALETTES: AccentPaletteDefinition[] = [
@@ -823,6 +849,22 @@ function inferTitle(markdown: string): string {
   return "Nota";
 }
 
+function inferJsonTitle(text: string): string {
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const keys = Object.keys(parsed as Record<string, unknown>);
+      if (keys.length > 0) return keys.slice(0, 2).join(" · ");
+      return "JSON";
+    }
+    if (Array.isArray(parsed)) return `Array (${parsed.length})`;
+    if (parsed === null) return "null";
+    return String(parsed);
+  } catch {
+    return "JSON";
+  }
+}
+
 function slugify(title: string): string {
   const cleaned = title
     .normalize("NFKD")
@@ -841,6 +883,47 @@ function slugify(title: string): string {
 function formatDateForFilename(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}_${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+}
+
+function getFileExtension(path: string): string {
+  const name = basename(path);
+  const idx = name.lastIndexOf(".");
+  if (idx === -1) return "";
+  return name.slice(idx + 1).toLowerCase();
+}
+
+function modeFromPath(path: string): DocumentMode | null {
+  const ext = getFileExtension(path);
+  if (ext === "json") return "json";
+  if (ext === "md" || ext === "markdown") return "markdown";
+  return null;
+}
+
+function extensionForMode(mode: DocumentMode): "md" | "json" {
+  return mode === "json" ? "json" : "md";
+}
+
+function defaultFileFilterForMode(mode: DocumentMode): { name: string; extensions: string[] } {
+  if (mode === "json") return { name: "JSON", extensions: ["json"] };
+  return { name: "Markdown", extensions: ["md", "markdown"] };
+}
+
+function getInitialDocumentMode(): DocumentMode {
+  const raw = window.localStorage.getItem(DOCUMENT_MODE_STORAGE_KEY);
+  return raw === "json" ? "json" : "markdown";
+}
+
+function inferDocumentTitle(content: string, mode: DocumentMode, fallbackPath: string | null): string {
+  if (mode === "json") {
+    const jsonTitle = inferJsonTitle(content).trim();
+    if (jsonTitle) return clamp(jsonTitle, 60);
+    if (fallbackPath) return basename(fallbackPath);
+    return "JSON";
+  }
+  const markdownTitle = inferTitle(content).trim();
+  if (markdownTitle) return clamp(markdownTitle, 60);
+  if (fallbackPath) return basename(fallbackPath);
+  return "Nota";
 }
 
 function clampNumber(value: number, min: number, max: number): number {
@@ -1381,14 +1464,37 @@ function setText(el: HTMLElement | null, text: string): void {
   if (el) el.textContent = text;
 }
 
+function setButtonLabel(button: HTMLButtonElement, label: string): void {
+  const labelEl = button.querySelector<HTMLElement>(".btn-label");
+  if (labelEl) {
+    labelEl.textContent = label;
+    return;
+  }
+  button.textContent = label;
+}
+
 window.addEventListener("DOMContentLoaded", async () => {
   const appEl = document.querySelector<HTMLElement>("#app");
   const statusEl = document.querySelector<HTMLElement>("#status");
   const workspaceMetaEl = document.querySelector<HTMLElement>("#workspace-meta");
+  const tabMarkdown = document.querySelector<HTMLButtonElement>("#tab-markdown");
+  const tabJson = document.querySelector<HTMLButtonElement>("#tab-json");
+  const markdownPanelEl = document.querySelector<HTMLElement>("#workspace-markdown-panel");
+  const jsonPanelEl = document.querySelector<HTMLElement>("#workspace-json-panel");
   const editorEl = document.querySelector<HTMLElement>("#editor");
+  const jsonTextEditorEl = document.querySelector<HTMLTextAreaElement>("#json-text-editor");
+  const jsonTreeEl = document.querySelector<HTMLElement>("#json-tree");
+  const jsonTreePaneEl = document.querySelector<HTMLElement>("#json-tree-pane");
+  const jsonLayoutEl = document.querySelector<HTMLElement>("#json-layout");
+  const jsonParseStatusEl = document.querySelector<HTMLElement>("#json-parse-status");
+  const btnJsonPretty = document.querySelector<HTMLButtonElement>("#btn-json-pretty");
+  const btnJsonMinify = document.querySelector<HTMLButtonElement>("#btn-json-minify");
+  const btnJsonTreeToggle = document.querySelector<HTMLButtonElement>("#btn-json-tree-toggle");
   const workspaceEl = document.querySelector<HTMLElement>(".workspace");
   const historyEl = document.querySelector<HTMLElement>("#history");
   const outlineEl = document.querySelector<HTMLElement>("#outline");
+  const outlineSectionTitleEl = document.querySelector<HTMLElement>(".sidebar-section-outline .sidebar-section-title");
+  const formatSectionEl = document.querySelector<HTMLElement>(".sidebar-section-format");
   const resetTypographyBtn = document.querySelector<HTMLButtonElement>("#btn-reset-typography");
   const typographyFontSize = document.querySelector<HTMLInputElement>("#typography-font-size");
   const typographyFontSizeValue = document.querySelector<HTMLElement>("#typography-font-size-value");
@@ -1410,6 +1516,17 @@ window.addEventListener("DOMContentLoaded", async () => {
   const btnSpellcheck = document.querySelector<HTMLButtonElement>("#btn-spellcheck");
   const btnSettings = document.querySelector<HTMLButtonElement>("#btn-settings");
   const btnOpenVault = document.querySelector<HTMLButtonElement>("#btn-open-vault");
+  const btnExploreVault = document.querySelector<HTMLButtonElement>("#btn-explore-vault");
+  const vaultNotesPathEl = document.querySelector<HTMLElement>("#vault-notes-path");
+  const btnAutosave = document.querySelector<HTMLButtonElement>("#btn-autosave");
+  const btnToastProfileBalanced = document.querySelector<HTMLButtonElement>("#btn-toast-profile-balanced");
+  const btnToastProfileStandard = document.querySelector<HTMLButtonElement>("#btn-toast-profile-standard");
+  const toastProfileSelectedName = document.querySelector<HTMLElement>("#toast-profile-selected-name");
+  const btnToastPositionBottom = document.querySelector<HTMLButtonElement>("#btn-toast-position-bottom");
+  const btnToastPositionTop = document.querySelector<HTMLButtonElement>("#btn-toast-position-top");
+  const toastPositionSelectedName = document.querySelector<HTMLElement>("#toast-position-selected-name");
+  const btnReduceMotion = document.querySelector<HTMLButtonElement>("#btn-reduce-motion");
+  const btnResetPreferences = document.querySelector<HTMLButtonElement>("#btn-reset-preferences");
   const btnRefreshHistory = document.querySelector<HTMLButtonElement>("#btn-refresh-history");
   const settingsOverlay = document.querySelector<HTMLElement>("#settings-overlay");
   const settingsCloseBtn = document.querySelector<HTMLButtonElement>("#settings-close");
@@ -1418,10 +1535,24 @@ window.addEventListener("DOMContentLoaded", async () => {
     !appEl ||
     !statusEl ||
     !workspaceMetaEl ||
+    !tabMarkdown ||
+    !tabJson ||
+    !markdownPanelEl ||
+    !jsonPanelEl ||
     !editorEl ||
+    !jsonTextEditorEl ||
+    !jsonTreeEl ||
+    !jsonTreePaneEl ||
+    !jsonLayoutEl ||
+    !jsonParseStatusEl ||
+    !btnJsonPretty ||
+    !btnJsonMinify ||
+    !btnJsonTreeToggle ||
     !workspaceEl ||
     !historyEl ||
     !outlineEl ||
+    !outlineSectionTitleEl ||
+    !formatSectionEl ||
     !resetTypographyBtn ||
     !typographyFontSize ||
     !typographyFontSizeValue ||
@@ -1442,6 +1573,17 @@ window.addEventListener("DOMContentLoaded", async () => {
     !btnSpellcheck ||
     !btnSettings ||
     !btnOpenVault ||
+    !btnExploreVault ||
+    !vaultNotesPathEl ||
+    !btnAutosave ||
+    !btnToastProfileBalanced ||
+    !btnToastProfileStandard ||
+    !toastProfileSelectedName ||
+    !btnToastPositionBottom ||
+    !btnToastPositionTop ||
+    !toastPositionSelectedName ||
+    !btnReduceMotion ||
+    !btnResetPreferences ||
     !btnRefreshHistory ||
     !settingsOverlay ||
     !settingsCloseBtn
@@ -1449,8 +1591,267 @@ window.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  const toasts = createToastHost();
+  const initialUiPreferences = readUiPreferences();
+  let toastProfile: ToastProfile = initialUiPreferences.toastProfile;
+  let toastPosition: ToastPosition = initialUiPreferences.toastPosition;
+  let reduceMotionPreference = initialUiPreferences.reduceMotion;
+  const reduceMotionMediaQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)") ?? null;
+  const reduceMotionEnabled = () => reduceMotionPreference || (reduceMotionMediaQuery?.matches ?? false);
+
+  const toasts = createToastHost({
+    position: toastPosition,
+    durationsByKind: TOAST_DURATIONS_BY_PROFILE[toastProfile],
+    reducedMotion: reduceMotionEnabled,
+  });
+  const applyToastHostPosition = (position: ToastPosition) => {
+    toasts.el.dataset.position = position;
+  };
+  const applyReducedMotionState = () => {
+    document.documentElement.setAttribute("data-reduce-motion", reduceMotionEnabled() ? "true" : "false");
+  };
+  applyToastHostPosition(toastPosition);
+  applyReducedMotionState();
+  if (reduceMotionMediaQuery) {
+    const onSystemReduceMotionChange = () => applyReducedMotionState();
+    reduceMotionMediaQuery.addEventListener("change", onSystemReduceMotionChange);
+  }
+
   const updateStatus = (text: string) => setText(statusEl, text);
+  const notify = (options: ToastShowOptions) => {
+    const kind: ToastKind = options.kind ?? "info";
+    const sticky = options.sticky ?? kind === "error";
+    const profileDuration = TOAST_DURATIONS_BY_PROFILE[toastProfile][kind];
+    const durationMs = sticky ? undefined : (options.durationMs ?? profileDuration);
+    return toasts.show({
+      ...options,
+      kind,
+      sticky,
+      durationMs,
+    });
+  };
+
+  let jsonWorkspaceTreeApi: Pick<JsonWorkspace, "setTreeVisible"> | null = null;
+
+  const readJsonTreeVisible = (): boolean => {
+    const raw = window.localStorage.getItem(JSON_TREE_VISIBLE_STORAGE_KEY);
+    if (raw === "1") return true;
+    if (raw === "0") return false;
+    return false;
+  };
+
+  const writeJsonTreeVisible = (visible: boolean) => {
+    window.localStorage.setItem(JSON_TREE_VISIBLE_STORAGE_KEY, visible ? "1" : "0");
+  };
+
+  let jsonTreeVisible = readJsonTreeVisible();
+
+  const applyJsonTreeVisible = (visible: boolean) => {
+    jsonTreeVisible = visible;
+    jsonLayoutEl.dataset.tree = visible ? "shown" : "hidden";
+    jsonTreePaneEl.hidden = !visible;
+    btnJsonTreeToggle.setAttribute("aria-pressed", visible ? "true" : "false");
+    const label = visible ? "Ocultar árbol JSON" : "Mostrar árbol JSON";
+    btnJsonTreeToggle.title = label;
+    btnJsonTreeToggle.setAttribute("aria-label", label);
+    jsonWorkspaceTreeApi?.setTreeVisible(visible);
+  };
+
+  applyJsonTreeVisible(jsonTreeVisible);
+
+  btnJsonTreeToggle.addEventListener("click", () => {
+    const next = !jsonTreeVisible;
+    writeJsonTreeVisible(next);
+    applyJsonTreeVisible(next);
+  });
+
+  const readAutosaveEnabled = (): boolean => {
+    const raw = window.localStorage.getItem(AUTOSAVE_STORAGE_KEY);
+    if (raw === "0") return false;
+    if (raw === "1") return true;
+    return true;
+  };
+
+  const writeAutosaveEnabled = (enabled: boolean) => {
+    window.localStorage.setItem(AUTOSAVE_STORAGE_KEY, enabled ? "1" : "0");
+  };
+
+  const updateAutosaveButton = (enabled: boolean) => {
+    btnAutosave.setAttribute("aria-pressed", enabled ? "true" : "false");
+    const labelEl = btnAutosave.querySelector<HTMLElement>("span");
+    if (labelEl) labelEl.textContent = enabled ? "Auto-guardado: Sí" : "Auto-guardado: No";
+    btnAutosave.title = enabled
+      ? "Guardar en scratch.md mientras editas"
+      : "Auto-guardado desactivado (scratch.md no se actualizará)";
+  };
+
+  const toastProfileOptions: ReadonlyArray<{ id: ToastProfile; label: string; button: HTMLButtonElement }> = [
+    { id: "balanced-fast", label: "Rápido balanceado", button: btnToastProfileBalanced },
+    { id: "standard", label: "Estándar", button: btnToastProfileStandard },
+  ];
+
+  const toastPositionOptions: ReadonlyArray<{ id: ToastPosition; label: string; button: HTMLButtonElement }> = [
+    { id: "bottom-right", label: "Inferior derecha", button: btnToastPositionBottom },
+    { id: "top-right", label: "Superior derecha", button: btnToastPositionTop },
+  ];
+
+  const syncToastProfileControls = () => {
+    const selected = toastProfileOptions.find((option) => option.id === toastProfile);
+    if (selected) toastProfileSelectedName.textContent = selected.label;
+
+    for (const option of toastProfileOptions) {
+      const checked = option.id === toastProfile;
+      option.button.setAttribute("aria-checked", checked ? "true" : "false");
+      option.button.tabIndex = checked ? 0 : -1;
+    }
+  };
+
+  const syncToastPositionControls = () => {
+    const selected = toastPositionOptions.find((option) => option.id === toastPosition);
+    if (selected) toastPositionSelectedName.textContent = selected.label;
+
+    for (const option of toastPositionOptions) {
+      const checked = option.id === toastPosition;
+      option.button.setAttribute("aria-checked", checked ? "true" : "false");
+      option.button.tabIndex = checked ? 0 : -1;
+    }
+
+    applyToastHostPosition(toastPosition);
+  };
+
+  const updateReduceMotionButton = (enabled: boolean) => {
+    btnReduceMotion.setAttribute("aria-pressed", enabled ? "true" : "false");
+    const labelEl = btnReduceMotion.querySelector<HTMLElement>("span");
+    if (labelEl) labelEl.textContent = enabled ? "Reducir animaciones: Sí" : "Reducir animaciones: No";
+    btnReduceMotion.title = enabled
+      ? "Reducir transiciones y animaciones visuales"
+      : "Usar transiciones y animaciones normales";
+  };
+
+  const setToastProfile = (next: ToastProfile, announce = true) => {
+    if (toastProfile === next) return;
+    toastProfile = next;
+    writeToastProfile(next);
+    syncToastProfileControls();
+
+    if (announce) {
+      const selected = toastProfileOptions.find((option) => option.id === next);
+      const label = selected?.label ?? "Perfil";
+      const message = `Notificaciones: ${label}`;
+      updateStatus(message);
+      notify({ kind: "info", message });
+    }
+  };
+
+  const setToastPosition = (next: ToastPosition, announce = true) => {
+    if (toastPosition === next) return;
+    toastPosition = next;
+    writeToastPosition(next);
+    syncToastPositionControls();
+
+    if (announce) {
+      const selected = toastPositionOptions.find((option) => option.id === next);
+      const label = selected?.label ?? "Posición";
+      const message = `Toasts: ${label}`;
+      updateStatus(message);
+      notify({ kind: "info", message });
+    }
+  };
+
+  const setReduceMotionPreference = (enabled: boolean, announce = true) => {
+    if (reduceMotionPreference === enabled) return;
+    reduceMotionPreference = enabled;
+    writeReduceMotion(enabled);
+    applyReducedMotionState();
+    updateReduceMotionButton(enabled);
+
+    if (announce) {
+      const message = reduceMotionEnabled() ? "Animaciones reducidas" : "Animaciones completas";
+      updateStatus(message);
+      notify({ kind: "info", message });
+    }
+  };
+
+  syncToastProfileControls();
+  syncToastPositionControls();
+  updateReduceMotionButton(reduceMotionPreference);
+
+  const bindChoiceGroupKeyboard = <T extends string>(
+    options: ReadonlyArray<{ id: T; button: HTMLButtonElement }>,
+    onSelect: (id: T) => void,
+  ) => {
+    for (const [index, option] of options.entries()) {
+      option.button.addEventListener("keydown", (event) => {
+        if (event.key !== "ArrowRight" && event.key !== "ArrowDown" && event.key !== "ArrowLeft" && event.key !== "ArrowUp") {
+          return;
+        }
+        event.preventDefault();
+        const direction = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
+        const nextIndex = (index + direction + options.length) % options.length;
+        const next = options[nextIndex];
+        onSelect(next.id);
+        next.button.focus();
+      });
+    }
+  };
+
+  for (const option of toastProfileOptions) {
+    option.button.addEventListener("click", () => setToastProfile(option.id));
+  }
+  for (const option of toastPositionOptions) {
+    option.button.addEventListener("click", () => setToastPosition(option.id));
+  }
+  bindChoiceGroupKeyboard(toastProfileOptions, (id) => setToastProfile(id));
+  bindChoiceGroupKeyboard(toastPositionOptions, (id) => setToastPosition(id));
+  btnReduceMotion.addEventListener("click", () => {
+    setReduceMotionPreference(!reduceMotionPreference);
+  });
+
+  let autosaveEnabled = readAutosaveEnabled();
+  updateAutosaveButton(autosaveEnabled);
+
+  btnAutosave.addEventListener("click", () => {
+    autosaveEnabled = !autosaveEnabled;
+    writeAutosaveEnabled(autosaveEnabled);
+    updateAutosaveButton(autosaveEnabled);
+    const msg = autosaveEnabled ? "Auto-guardado activado" : "Auto-guardado desactivado";
+    updateStatus(msg);
+    notify({ kind: "info", message: msg });
+  });
+
+  btnResetPreferences.addEventListener("click", () => {
+    void (async () => {
+      const ok = await confirm(
+        "¿Restablecer ajustes?\n\nEsto reinicia tema, paletas, zoom y preferencias. La app se recargará.",
+        {
+          kind: "warning",
+          title: "Pega e Ignora",
+          okLabel: "Restablecer",
+          cancelLabel: "Cancelar",
+        },
+      );
+      if (!ok) return;
+
+      for (const key of [
+        THEME_STORAGE_KEY,
+        APP_THEME_STORAGE_KEY,
+        ACCENT_PALETTE_STORAGE_KEY,
+        WORKSPACE_ZOOM_STORAGE_KEY,
+        TYPOGRAPHY_STORAGE_KEY,
+        SPELLCHECK_STORAGE_KEY,
+        READ_MODE_STORAGE_KEY,
+        SIDEBAR_SECTIONS_STORAGE_KEY,
+        AUTOSAVE_STORAGE_KEY,
+        UI_PREF_KEYS.toastProfile,
+        UI_PREF_KEYS.toastPosition,
+        UI_PREF_KEYS.reduceMotion,
+        JSON_TREE_VISIBLE_STORAGE_KEY,
+      ]) {
+        window.localStorage.removeItem(key);
+      }
+
+      window.location.reload();
+    })();
+  });
 
   let currentTheme: AppTheme = getInitialTheme();
   let currentAccentPalette: AccentPalette = getInitialAccentPalette();
@@ -1543,7 +1944,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (announce) {
       const name = ACCENT_PALETTE_BY_ID.get(next)?.name ?? "Paleta";
       updateStatus(`Paleta: ${name}`);
-      toasts.show({ kind: "info", message: `Paleta: ${name}` });
+      notify({ kind: "info", message: `Paleta: ${name}` });
     }
   };
 
@@ -1557,7 +1958,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (announce) {
       const name = APP_THEME_BY_ID.get(next)?.name ?? "Tema";
       updateStatus(`Tema: ${name}`);
-      toasts.show({ kind: "info", message: `Tema: ${name}` });
+      notify({ kind: "info", message: `Tema: ${name}` });
     }
   };
 
@@ -1636,8 +2037,11 @@ window.addEventListener("DOMContentLoaded", async () => {
     currentTheme = theme;
     document.documentElement.setAttribute("data-theme", theme);
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-    btnTheme.textContent = theme === "dark" ? "Modo claro" : "Modo oscuro";
-    btnTheme.title = theme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro";
+    btnTheme.dataset.mode = theme;
+    btnTheme.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
+    const nextAction = theme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro";
+    btnTheme.title = nextAction;
+    btnTheme.setAttribute("aria-label", nextAction);
     applyAppThemePalette(currentAppTheme, theme);
     applyAccentPalette(currentAccentPalette, theme);
     syncAppThemePicker();
@@ -1649,7 +2053,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     const nextTheme: AppTheme = currentTheme === "light" ? "dark" : "light";
     applyTheme(nextTheme);
     updateStatus(nextTheme === "dark" ? "Tema oscuro" : "Tema claro");
-    toasts.show({ kind: "info", message: nextTheme === "dark" ? "Tema oscuro" : "Tema claro" });
+    notify({ kind: "info", message: nextTheme === "dark" ? "Tema oscuro" : "Tema claro" });
   });
 
   const readReadModeEnabled = (): boolean => {
@@ -1665,7 +2069,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   const applyReadMode = (enabled: boolean) => {
     appEl.dataset.readMode = enabled ? "true" : "false";
-    btnReadMode.textContent = enabled ? "Editar" : "Lectura";
+    btnReadMode.setAttribute("aria-pressed", enabled ? "true" : "false");
     btnReadMode.title = enabled ? "Salir de modo lectura" : "Entrar a modo lectura";
   };
 
@@ -1820,7 +2224,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   };
 
   const updateSpellcheckButton = (enabled: boolean) => {
-    btnSpellcheck.textContent = enabled ? "Ortografía: Sí" : "Ortografía: No";
+    setButtonLabel(btnSpellcheck, enabled ? "Ortografía: Sí" : "Ortografía: No");
+    btnSpellcheck.setAttribute("aria-pressed", enabled ? "true" : "false");
     btnSpellcheck.title = enabled
       ? "Ortografía activada (Español). Click para desactivar."
       : "Ortografía desactivada. Click para activar.";
@@ -1914,8 +2319,22 @@ window.addEventListener("DOMContentLoaded", async () => {
       ["table", "link", "code", "codeblock"],
     ],
   });
-
-  const findReplace = createFindReplace({ editor });
+  const jsonWorkspace = createJsonWorkspace({
+    textAreaEl: jsonTextEditorEl,
+    treeEl: jsonTreeEl,
+    statusEl: jsonParseStatusEl,
+    prettyBtn: btnJsonPretty,
+    minifyBtn: btnJsonMinify,
+    treeVisible: jsonTreeVisible,
+    onInform: (messageText, kind) => {
+      updateStatus(messageText);
+      notify({
+        kind: kind === "error" ? "error" : kind === "warning" ? "warning" : "info",
+        message: messageText,
+      });
+    },
+  });
+  jsonWorkspaceTreeApi = jsonWorkspace;
 
   const syncEditorDomEnhancements = () => {
     applySpellcheckToEditor(spellcheckEnabled);
@@ -1934,7 +2353,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     syncEditorDomEnhancements();
     const msg = spellcheckEnabled ? "Ortografía activada" : "Ortografía desactivada";
     setText(statusEl, msg);
-    toasts.show({ kind: "info", message: msg });
+    notify({ kind: "info", message: msg });
   });
 
   btnReadMode.addEventListener("click", () => {
@@ -1943,7 +2362,134 @@ window.addEventListener("DOMContentLoaded", async () => {
     applyReadMode(readModeEnabled);
     const msg = readModeEnabled ? "Modo lectura" : "Modo edición";
     setText(statusEl, msg);
-    toasts.show({ kind: "info", message: msg });
+    notify({ kind: "info", message: msg });
+  });
+
+  let activeDocumentMode: DocumentMode = getInitialDocumentMode();
+  let onDocumentModeChanged = () => {};
+
+  const syncModeTabs = () => {
+    const markdownActive = activeDocumentMode === "markdown";
+    tabMarkdown.setAttribute("aria-selected", markdownActive ? "true" : "false");
+    tabMarkdown.tabIndex = markdownActive ? 0 : -1;
+    tabJson.setAttribute("aria-selected", markdownActive ? "false" : "true");
+    tabJson.tabIndex = markdownActive ? -1 : 0;
+    markdownPanelEl.hidden = !markdownActive;
+    jsonPanelEl.hidden = markdownActive;
+    formatSectionEl.hidden = !markdownActive;
+    outlineSectionTitleEl.textContent = markdownActive ? "Jerarquía" : "Estructura JSON";
+  };
+
+  const setActiveDocumentMode = (mode: DocumentMode, announce = false) => {
+    activeDocumentMode = mode;
+    window.localStorage.setItem(DOCUMENT_MODE_STORAGE_KEY, mode);
+    syncModeTabs();
+    onDocumentModeChanged();
+    if (announce) {
+      const label = mode === "markdown" ? "Modo Markdown" : "Modo JSON";
+      updateStatus(label);
+      notify({ kind: "info", message: label });
+    }
+  };
+
+  tabMarkdown.addEventListener("click", () => {
+    if (activeDocumentMode === "markdown") return;
+    setActiveDocumentMode("markdown", true);
+    editor.focus();
+  });
+
+  tabJson.addEventListener("click", () => {
+    if (activeDocumentMode === "json") return;
+    setActiveDocumentMode("json", true);
+    jsonWorkspace.focus();
+  });
+
+  const tabs = [tabMarkdown, tabJson];
+  for (const tab of tabs) {
+    tab.addEventListener("keydown", (event) => {
+      const index = tabs.indexOf(tab);
+      if (index === -1) return;
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        tabs[(index + 1) % tabs.length].click();
+        tabs[(index + 1) % tabs.length].focus();
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        tabs[(index + tabs.length - 1) % tabs.length].click();
+        tabs[(index + tabs.length - 1) % tabs.length].focus();
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        tabs[0].click();
+        tabs[0].focus();
+      } else if (event.key === "End") {
+        event.preventDefault();
+        tabs[tabs.length - 1].click();
+        tabs[tabs.length - 1].focus();
+      }
+    });
+  }
+
+  const selectionPosToIndex = (text: string, pos: number | number[]): number => {
+    if (typeof pos === "number") return clampNumber(pos, 0, text.length);
+    const line = clampNumber(pos[0] ?? 1, 1, Number.MAX_SAFE_INTEGER);
+    const charOffset = clampNumber(pos[1] ?? 1, 1, Number.MAX_SAFE_INTEGER);
+    let currentLine = 1;
+    let index = 0;
+    while (currentLine < line && index < text.length) {
+      if (text[index] === "\n") currentLine += 1;
+      index += 1;
+    }
+    return clampNumber(index + charOffset - 1, 0, text.length);
+  };
+
+  const findReplace = createFindReplace({
+    editor: {
+      getMarkdown: () => (activeDocumentMode === "json" ? jsonWorkspace.getText() : editor.getMarkdown()),
+      setMarkdown: (markdown: string) => {
+        if (activeDocumentMode === "json") {
+          jsonWorkspace.setText(markdown, true);
+          return;
+        }
+        editor.setMarkdown(markdown, false);
+      },
+      setSelection: (start, end) => {
+        if (activeDocumentMode === "json") {
+          const textValue = jsonWorkspace.getText();
+          const from = selectionPosToIndex(textValue, start);
+          const to = selectionPosToIndex(textValue, end);
+          jsonTextEditorEl.focus();
+          jsonTextEditorEl.setSelectionRange(from, to);
+          return;
+        }
+        editor.setSelection(start, end);
+      },
+      focus: () => {
+        if (activeDocumentMode === "json") {
+          jsonWorkspace.focus();
+          return;
+        }
+        editor.focus();
+      },
+      isWysiwygMode: () => (activeDocumentMode === "json" ? false : editor.isWysiwygMode()),
+      convertPosToMatchEditorMode: (start, end, mode) => {
+        if (activeDocumentMode === "json") return [start, end ?? start];
+        return editor.convertPosToMatchEditorMode(start, end, mode);
+      },
+      replaceSelection: (nextText, start, end) => {
+        if (activeDocumentMode === "json") {
+          const source = jsonWorkspace.getText();
+          const from = selectionPosToIndex(source, start ?? jsonTextEditorEl.selectionStart);
+          const to = selectionPosToIndex(source, end ?? jsonTextEditorEl.selectionEnd);
+          const next = source.slice(0, from) + nextText + source.slice(to);
+          jsonWorkspace.setText(next, true);
+          const cursor = from + nextText.length;
+          jsonTextEditorEl.focus();
+          jsonTextEditorEl.setSelectionRange(cursor, cursor);
+          return;
+        }
+        editor.replaceSelection(nextText, start, end);
+      },
+    },
   });
 
   let suppressEditorChange = false;
@@ -1957,6 +2503,14 @@ window.addEventListener("DOMContentLoaded", async () => {
     renderOutline();
     return { markdown: sanitized.markdown, hadUnsafeLinks: sanitized.changed };
   };
+  const getActiveDocumentValue = () => (activeDocumentMode === "json" ? jsonWorkspace.getText() : getEditorValue());
+  const inferCurrentDocumentTitle = (path: string | null) =>
+    inferDocumentTitle(getActiveDocumentValue(), activeDocumentMode, path);
+  const modeCompatibleWithPath = (mode: DocumentMode, path: string) => {
+    const inferred = modeFromPath(path);
+    if (!inferred) return false;
+    return inferred === mode;
+  };
 
   let workspaceZoom = 1;
   const storedWorkspaceZoom = Number(window.localStorage.getItem(WORKSPACE_ZOOM_STORAGE_KEY));
@@ -1965,8 +2519,10 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
   const applyWorkspaceZoom = () => {
     editorEl.style.setProperty("--workspace-zoom", workspaceZoom.toFixed(2));
+    jsonTextEditorEl.style.fontSize = `${(13 * workspaceZoom).toFixed(2)}px`;
   };
   applyWorkspaceZoom();
+  syncModeTabs();
 
   const paletteSelectionActions: CommandPaletteAction[] = ACCENT_PALETTES.map((p) => ({
     id: `palette.${p.id}`,
@@ -1978,8 +2534,12 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   const basePaletteActions: CommandPaletteAction[] = [
     { id: "view.theme", title: "Cambiar tema", subtitle: "Claro / Oscuro", group: "Vista" },
+    { id: "view.modeMarkdown", title: "Vista Markdown", subtitle: "Activar editor Markdown", group: "Vista" },
+    { id: "view.modeJson", title: "Vista JSON", subtitle: "Activar editor JSON", group: "Vista" },
     { id: "view.readMode", title: "Modo lectura", subtitle: "Ocultar sidebar", group: "Vista", keywords: ["lectura"] },
     { id: "tools.spellcheck", title: "Ortografía", subtitle: "Mostrar/ocultar subrayados", group: "Herramientas" },
+    { id: "tools.jsonPretty", title: "JSON Pretty", subtitle: "Formatear con 2 espacios", group: "Herramientas" },
+    { id: "tools.jsonMinify", title: "JSON Minify", subtitle: "Compactar JSON", group: "Herramientas" },
     {
       id: "tools.find",
       title: "Buscar…",
@@ -2018,8 +2578,36 @@ window.addEventListener("DOMContentLoaded", async () => {
         btnReadMode.click();
         return;
       }
+      if (actionId === "view.modeMarkdown") {
+        if (activeDocumentMode !== "markdown") setActiveDocumentMode("markdown", true);
+        return;
+      }
+      if (actionId === "view.modeJson") {
+        if (activeDocumentMode !== "json") setActiveDocumentMode("json", true);
+        return;
+      }
       if (actionId === "tools.spellcheck") {
         btnSpellcheck.click();
+        return;
+      }
+      if (actionId === "tools.jsonPretty") {
+        if (activeDocumentMode !== "json") {
+          notify({ kind: "info", message: "Cambia a vista JSON para formatear." });
+          return;
+        }
+        if (jsonWorkspace.pretty()) {
+          updateStatus("JSON formateado");
+        }
+        return;
+      }
+      if (actionId === "tools.jsonMinify") {
+        if (activeDocumentMode !== "json") {
+          notify({ kind: "info", message: "Cambia a vista JSON para minificar." });
+          return;
+        }
+        if (jsonWorkspace.minify()) {
+          updateStatus("JSON minificado");
+        }
         return;
       }
       if (actionId === "tools.find") {
@@ -2035,13 +2623,13 @@ window.addEventListener("DOMContentLoaded", async () => {
   let settingsOpen = false;
   let settingsLastActive: HTMLElement | null = null;
   let settingsHideTimer: number | null = null;
-
-  const reduceMotionEnabled = () => window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+  btnSettings.setAttribute("aria-expanded", "false");
 
   const closeSettings = () => {
     if (!settingsOpen) return;
     settingsOpen = false;
     settingsOverlay.dataset.state = "closed";
+    btnSettings.setAttribute("aria-expanded", "false");
     window.removeEventListener("keydown", onSettingsKeyDown, true);
 
     const restoreFocus = () => {
@@ -2082,6 +2670,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   const openSettings = () => {
     if (settingsOpen) return;
     settingsOpen = true;
+    btnSettings.setAttribute("aria-expanded", "true");
     settingsLastActive = (document.activeElement as HTMLElement | null) ?? null;
 
     if (settingsHideTimer !== null) {
@@ -2145,16 +2734,20 @@ window.addEventListener("DOMContentLoaded", async () => {
       });
     } catch {
       updateStatus("Vault no disponible");
-      toasts.show({ kind: "error", message: "Vault no disponible (solo modo lectura)." });
+      notify({ kind: "error", message: "Vault no disponible (solo modo lectura)." });
     }
 
     btnOpen.disabled = true;
     btnSave.disabled = true;
     btnSaveAs.disabled = true;
     btnOpenVault.disabled = true;
+    btnExploreVault.disabled = true;
     btnRefreshHistory.disabled = true;
+    setText(vaultNotesPathEl, "Vault no disponible");
     return;
   }
+
+  setText(vaultNotesPathEl, vault.notesDir);
 
   let currentPath: string | null = null;
   let history: HistoryItem[] = await loadHistory(vault);
@@ -2169,14 +2762,26 @@ window.addEventListener("DOMContentLoaded", async () => {
   };
 
   const syncFileButtons = () => {
-    const canSave = !saveInProgress && (currentPath === null || isDirty);
+    const jsonValid = activeDocumentMode !== "json" || jsonWorkspace.isValid();
+    const canSave = !saveInProgress && jsonValid && (currentPath === null || isDirty);
     btnSave.disabled = !canSave;
-    btnSaveAs.disabled = saveInProgress;
+    btnSaveAs.disabled = saveInProgress || !jsonValid;
   };
 
   const updateMeta = () => {
     const fileLabel = currentPath ? basename(currentPath) : "(sin archivo)";
-    setText(workspaceMetaEl, `${fileLabel}${isDirty ? " • editando" : ""}`);
+    const modeLabel = activeDocumentMode === "json" ? "JSON" : "Markdown";
+    setText(workspaceMetaEl, `${fileLabel} • ${modeLabel}${isDirty ? " • editando" : ""}`);
+    syncFileButtons();
+  };
+
+  onDocumentModeChanged = () => {
+    if (currentPath && !modeCompatibleWithPath(activeDocumentMode, currentPath)) {
+      currentPath = null;
+      isDirty = false;
+    }
+    renderOutline();
+    updateMeta();
     syncFileButtons();
   };
 
@@ -2195,7 +2800,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         event.stopPropagation();
         anchor.setAttribute("href", "#");
         updateStatus("Link bloqueado por seguridad.");
-        toasts.show({ kind: "warning", message: "Link bloqueado por seguridad." });
+        notify({ kind: "warning", message: "Link bloqueado por seguridad." });
         return;
       }
 
@@ -2217,7 +2822,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   const debouncedAutosave = debounce(async () => {
     try {
-      await writeTextFile(vault.scratchPath, getEditorValue());
+      await writeTextFile(vault.scratchPath, getActiveDocumentValue());
     } catch {
       // autosave best-effort
     }
@@ -2306,10 +2911,10 @@ window.addEventListener("DOMContentLoaded", async () => {
           await remove(item.path);
           deleted = true;
           updateStatus(`Borrado: ${filename}`);
-          toasts.show({ id: "file.deleted", kind: "warning", message: `Borrado: ${filename}` });
+          notify({ id: "file.deleted", kind: "warning", message: `Borrado: ${filename}` });
         } catch (err) {
           updateStatus(`No pude borrar: ${filename}`);
-          toasts.show({ id: "file.deleteError", kind: "error", message: `No pude borrar: ${filename}` });
+          notify({ id: "file.deleteError", kind: "error", message: `No pude borrar: ${filename}` });
         } finally {
           let shouldDrop = deleted;
           if (!shouldDrop) {
@@ -2374,6 +2979,54 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   renderOutline = () => {
     outlineEl.innerHTML = "";
+    if (activeDocumentMode === "json") {
+      if (!jsonWorkspace.isValid()) {
+        const empty = document.createElement("li");
+        empty.className = "list-empty";
+        empty.textContent = "JSON inválido. Corrige el texto para ver estructura.";
+        outlineEl.append(empty);
+        return;
+      }
+
+      const entries = jsonWorkspace.getStructureEntries().slice(0, 260);
+      if (entries.length === 0) {
+        const empty = document.createElement("li");
+        empty.className = "list-empty";
+        empty.textContent = "Sin nodos JSON.";
+        outlineEl.append(empty);
+        return;
+      }
+
+      for (const entry of entries) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "outline-item";
+        btn.setAttribute("data-level", String(Math.min(6, entry.depth + 1)));
+        btn.style.setProperty("--outline-level", String(Math.min(6, entry.depth + 1)));
+        btn.title = entry.path;
+
+        const level = document.createElement("span");
+        level.className = "outline-level";
+        level.textContent = entry.kind;
+
+        const text = document.createElement("span");
+        text.className = "outline-text";
+        text.textContent = clamp(entry.label, 80);
+
+        const line = document.createElement("span");
+        line.className = "outline-line";
+        line.textContent = entry.path;
+
+        btn.append(level, text, line);
+        btn.addEventListener("click", () => {
+          jsonWorkspace.focusPath(entry.path);
+          updateStatus(`Nodo: ${entry.path}`);
+        });
+        outlineEl.append(btn);
+      }
+      return;
+    }
+
     const headings = extractHeadingEntries(getEditorValue());
     if (headings.length === 0) {
       const empty = document.createElement("li");
@@ -2434,15 +3087,30 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
     try {
       const content = await readTextFile(path);
-      const { markdown, hadUnsafeLinks } = setEditorValue(content);
+      const fileMode = modeFromPath(path) ?? activeDocumentMode;
+      setActiveDocumentMode(fileMode);
+      let hadUnsafeLinks = false;
+
+      if (fileMode === "json") {
+        jsonWorkspace.setText(content, false);
+      } else {
+        const result = setEditorValue(content);
+        hadUnsafeLinks = result.hadUnsafeLinks;
+      }
+
       currentPath = path;
       isDirty = false;
       updateMeta();
+
+      const jsonInvalidSuffix =
+        fileMode === "json" && !jsonWorkspace.isValid() ? " • JSON inválido (guardado bloqueado)" : "";
       updateStatus(
-        `Abierto: ${basename(path)}${hadUnsafeLinks ? " • links inseguros bloqueados (guarda para aplicar)" : ""}`,
+        `Abierto: ${basename(path)}${hadUnsafeLinks ? " • links inseguros bloqueados (guarda para aplicar)" : ""}${jsonInvalidSuffix}`,
       );
-      toasts.show({ kind: "info", message: `Abierto: ${basename(path)}` });
-      await upsertHistory(path, inferTitle(markdown));
+      notify({ kind: "info", message: `Abierto: ${basename(path)}` });
+      await upsertHistory(path, inferDocumentTitle(content, fileMode, path));
+      renderOutline();
+      syncFileButtons();
     } catch (err) {
       await message(`No pude abrir el archivo.\n\n${String(err)}`, {
         kind: "error",
@@ -2459,17 +3127,50 @@ window.addEventListener("DOMContentLoaded", async () => {
       );
       return;
     }
+
+    const targetMode = modeFromPath(path);
+    if (!targetMode) {
+      await message("Extensión no soportada. Usa .md/.markdown o .json.", {
+        kind: "warning",
+        title: "Pega e Ignora",
+      });
+      return;
+    }
+    if (targetMode !== activeDocumentMode) {
+      await message(`La extensión no coincide con el modo activo (${activeDocumentMode}).`, {
+        kind: "warning",
+        title: "Pega e Ignora",
+      });
+      return;
+    }
+    if (activeDocumentMode === "json" && !jsonWorkspace.isValid()) {
+      await message("No se puede guardar: el JSON es inválido.", {
+        kind: "warning",
+        title: "Pega e Ignora",
+      });
+      return;
+    }
+
     try {
-      const markdownRaw = getEditorValue();
-      const sanitized = sanitizeMarkdownLinks(markdownRaw);
-      await writeTextFile(path, sanitized.markdown);
-      if (sanitized.changed) setEditorValue(sanitized.markdown);
+      let savedText = "";
+      let hadUnsafeLinks = false;
+      if (activeDocumentMode === "json") {
+        savedText = jsonWorkspace.getText();
+      } else {
+        const markdownRaw = getEditorValue();
+        const sanitized = sanitizeMarkdownLinks(markdownRaw);
+        savedText = sanitized.markdown;
+        hadUnsafeLinks = sanitized.changed;
+        if (sanitized.changed) setEditorValue(sanitized.markdown);
+      }
+
+      await writeTextFile(path, savedText);
       currentPath = path;
       isDirty = false;
       updateMeta();
-      updateStatus(`Guardado: ${basename(path)}${sanitized.changed ? " • links inseguros bloqueados" : ""}`);
-      toasts.show({ id: "file.saved", kind: "success", message: `Guardado: ${basename(path)}` });
-      await upsertHistory(path, inferTitle(sanitized.markdown));
+      updateStatus(`Guardado: ${basename(path)}${hadUnsafeLinks ? " • links inseguros bloqueados" : ""}`);
+      notify({ id: "file.saved", kind: "success", message: `Guardado: ${basename(path)}` });
+      await upsertHistory(path, inferDocumentTitle(savedText, activeDocumentMode, path));
     } catch (err) {
       await message(`No pude guardar el archivo.\n\n${String(err)}`, {
         kind: "error",
@@ -2479,8 +3180,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   };
 
   const saveNewNote = async () => {
-    const title = inferTitle(getEditorValue());
-    const filename = `${formatDateForFilename(new Date())}_${slugify(title)}.md`;
+    const title = inferCurrentDocumentTitle(null);
+    const filename = `${formatDateForFilename(new Date())}_${slugify(title)}.${extensionForMode(activeDocumentMode)}`;
     const path = await join(vault.notesDir, filename);
     await saveToPath(path);
   };
@@ -2489,7 +3190,9 @@ window.addEventListener("DOMContentLoaded", async () => {
     const selected = await openVaultExplorer({
       vaultDir: vault.vaultDir,
       notesDir: vault.notesDir,
-      title: "Explorar notas",
+      title: "Explorar archivos",
+      allowedExtensions: ["md", "markdown", "json"],
+      defaultExtension: extensionForMode(activeDocumentMode),
     });
     if (!selected) return;
     await openNote(selected);
@@ -2504,7 +3207,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       group: "Archivo",
       keywords: ["nuevo", "limpiar"],
     },
-    { id: "file.open", title: "Abrir…", subtitle: "Elegir un .md", shortcut: "Ctrl+O", group: "Archivo" },
+    { id: "file.open", title: "Abrir…", subtitle: "Elegir .md o .json", shortcut: "Ctrl+O", group: "Archivo" },
     { id: "file.save", title: "Guardar", subtitle: "Guardar cambios", shortcut: "Ctrl+S", group: "Archivo" },
     {
       id: "file.saveAs",
@@ -2516,16 +3219,20 @@ window.addEventListener("DOMContentLoaded", async () => {
     },
     {
       id: "vault.explore",
-      title: "Explorar notas…",
+      title: "Explorar archivos…",
       subtitle: "Buscar y abrir dentro del vault",
       group: "Vault",
-      keywords: ["vault", "notes", "notas"],
+      keywords: ["vault", "notes", "notas", "json"],
     },
     { id: "vault.folder", title: "Abrir carpeta del vault", subtitle: "Abrir en Explorer", group: "Vault" },
     { id: "history.refresh", title: "Actualizar historial", group: "Vault", keywords: ["recientes"] },
     { id: "view.theme", title: "Cambiar tema", subtitle: "Claro / Oscuro", group: "Vista" },
+    { id: "view.modeMarkdown", title: "Vista Markdown", subtitle: "Activar editor Markdown", group: "Vista" },
+    { id: "view.modeJson", title: "Vista JSON", subtitle: "Activar editor JSON", group: "Vista" },
     { id: "view.readMode", title: "Modo lectura", subtitle: "Ocultar sidebar", group: "Vista", keywords: ["lectura"] },
     { id: "tools.spellcheck", title: "Ortografía", subtitle: "Mostrar/ocultar subrayados", group: "Herramientas" },
+    { id: "tools.jsonPretty", title: "JSON Pretty", subtitle: "Formatear con 2 espacios", group: "Herramientas" },
+    { id: "tools.jsonMinify", title: "JSON Minify", subtitle: "Compactar JSON", group: "Herramientas" },
     {
       id: "tools.find",
       title: "Buscar…",
@@ -2560,21 +3267,31 @@ window.addEventListener("DOMContentLoaded", async () => {
 
         if (actionId === "file.new") {
           if (!(await maybeDiscardChanges())) return;
-          setEditorValue("");
+          if (activeDocumentMode === "json") {
+            jsonWorkspace.setText("{}", false);
+          } else {
+            setEditorValue("");
+          }
           currentPath = null;
           isDirty = false;
           updateMeta();
+          renderOutline();
+          syncFileButtons();
           updateStatus("Nuevo documento");
-          toasts.show({ kind: "info", message: "Nuevo documento" });
+          notify({ kind: "info", message: "Nuevo documento" });
           return;
         }
 
         if (actionId === "file.open") {
           if (!(await maybeDiscardChanges())) return;
           const selection = await dialogOpen({
-            title: "Abrir Markdown",
+            title: "Abrir documento",
             defaultPath: vault.notesDir,
-            filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
+            filters: [
+              { name: "Documentos", extensions: ["md", "markdown", "json"] },
+              { name: "Markdown", extensions: ["md", "markdown"] },
+              { name: "JSON", extensions: ["json"] },
+            ],
             multiple: false,
             directory: false,
           });
@@ -2594,10 +3311,19 @@ window.addEventListener("DOMContentLoaded", async () => {
         }
 
         if (actionId === "file.saveAs") {
+          if (activeDocumentMode === "json" && !jsonWorkspace.isValid()) {
+            await message("No se puede guardar: el JSON es inválido.", {
+              kind: "warning",
+              title: "Pega e Ignora",
+            });
+            return;
+          }
+          const extension = extensionForMode(activeDocumentMode);
+          const filter = defaultFileFilterForMode(activeDocumentMode);
           const savePath = await dialogSave({
-            title: "Guardar Markdown como…",
-            defaultPath: await join(vault.notesDir, `${slugify(inferTitle(getEditorValue()))}.md`),
-            filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
+            title: activeDocumentMode === "json" ? "Guardar JSON como…" : "Guardar Markdown como…",
+            defaultPath: await join(vault.notesDir, `${slugify(inferCurrentDocumentTitle(currentPath))}.${extension}`),
+            filters: [filter],
           });
           if (savePath) await saveToPath(savePath);
           return;
@@ -2611,7 +3337,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         if (actionId === "vault.folder") {
           try {
             await openPath(vault.notesDir);
-            toasts.show({ kind: "info", message: "Carpeta del vault abierta" });
+            notify({ kind: "info", message: "Carpeta del vault abierta" });
           } catch {
             // ignore
           }
@@ -2622,7 +3348,7 @@ window.addEventListener("DOMContentLoaded", async () => {
           history = await loadHistory(vault);
           renderHistory();
           updateStatus("Historial actualizado");
-          toasts.show({ kind: "info", message: "Historial actualizado" });
+          notify({ kind: "info", message: "Historial actualizado" });
           return;
         }
 
@@ -2630,7 +3356,25 @@ window.addEventListener("DOMContentLoaded", async () => {
           const nextTheme: AppTheme = currentTheme === "light" ? "dark" : "light";
           applyTheme(nextTheme);
           updateStatus(nextTheme === "dark" ? "Tema oscuro" : "Tema claro");
-          toasts.show({ kind: "info", message: nextTheme === "dark" ? "Tema oscuro" : "Tema claro" });
+          notify({ kind: "info", message: nextTheme === "dark" ? "Tema oscuro" : "Tema claro" });
+          return;
+        }
+
+        if (actionId === "view.modeMarkdown") {
+          if (activeDocumentMode !== "markdown") {
+            setActiveDocumentMode("markdown", true);
+            updateMeta();
+            syncFileButtons();
+          }
+          return;
+        }
+
+        if (actionId === "view.modeJson") {
+          if (activeDocumentMode !== "json") {
+            setActiveDocumentMode("json", true);
+            updateMeta();
+            syncFileButtons();
+          }
           return;
         }
 
@@ -2639,7 +3383,7 @@ window.addEventListener("DOMContentLoaded", async () => {
           writeReadModeEnabled(readModeEnabled);
           applyReadMode(readModeEnabled);
           updateStatus(readModeEnabled ? "Modo lectura" : "Modo edición");
-          toasts.show({ kind: "info", message: readModeEnabled ? "Modo lectura" : "Modo edición" });
+          notify({ kind: "info", message: readModeEnabled ? "Modo lectura" : "Modo edición" });
           return;
         }
 
@@ -2650,7 +3394,31 @@ window.addEventListener("DOMContentLoaded", async () => {
           syncEditorDomEnhancements();
           const msg = spellcheckEnabled ? "Ortografía activada" : "Ortografía desactivada";
           setText(statusEl, msg);
-          toasts.show({ kind: "info", message: msg });
+          notify({ kind: "info", message: msg });
+          return;
+        }
+
+        if (actionId === "tools.jsonPretty") {
+          if (activeDocumentMode !== "json") {
+            notify({ kind: "info", message: "Cambia a vista JSON para formatear." });
+            return;
+          }
+          if (jsonWorkspace.pretty()) {
+            updateStatus("JSON formateado");
+            notify({ kind: "info", message: "JSON formateado" });
+          }
+          return;
+        }
+
+        if (actionId === "tools.jsonMinify") {
+          if (activeDocumentMode !== "json") {
+            notify({ kind: "info", message: "Cambia a vista JSON para minificar." });
+            return;
+          }
+          if (jsonWorkspace.minify()) {
+            updateStatus("JSON minificado");
+            notify({ kind: "info", message: "JSON minificado" });
+          }
           return;
         }
 
@@ -2679,10 +3447,23 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   editor.on("change", () => {
     if (suppressEditorChange) return;
+    if (activeDocumentMode !== "markdown") return;
     isDirty = true;
     updateMeta();
-    debouncedAutosave();
+    if (autosaveEnabled) debouncedAutosave();
     debouncedOutlineRender();
+  });
+
+  jsonWorkspace.onChange(() => {
+    if (activeDocumentMode !== "json") {
+      syncFileButtons();
+      return;
+    }
+    isDirty = true;
+    updateMeta();
+    if (autosaveEnabled) debouncedAutosave();
+    debouncedOutlineRender();
+    syncFileButtons();
   });
 
   let selectAllPrimedAt = 0;
@@ -2701,6 +3482,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   editorEl.addEventListener(
     "paste",
     (event) => {
+      if (activeDocumentMode !== "markdown") return;
       if (!editor.isWysiwygMode()) return;
       const pastedText = event.clipboardData?.getData("text/plain") ?? "";
       if (!looksLikeMarkdown(pastedText)) return;
@@ -2720,12 +3502,12 @@ window.addEventListener("DOMContentLoaded", async () => {
 
       const applied = setEditorValue(sanitizedText.markdown);
       if (sanitizedText.changed || applied.hadUnsafeLinks) {
-        toasts.show({ kind: "warning", message: "Se eliminaron enlaces no seguros del contenido pegado." });
+        notify({ kind: "warning", message: "Se eliminaron enlaces no seguros del contenido pegado." });
       }
 
       isDirty = true;
       updateMeta();
-      debouncedAutosave();
+      if (autosaveEnabled) debouncedAutosave();
       debouncedOutlineRender();
     },
     { capture: true },
@@ -2767,9 +3549,16 @@ window.addEventListener("DOMContentLoaded", async () => {
       e.preventDefault();
       if (saveInProgress) return;
       void (async () => {
+        if (activeDocumentMode === "json" && !jsonWorkspace.isValid()) {
+          await message("No se puede guardar: el JSON es inválido.", {
+            kind: "warning",
+            title: "Pega e Ignora",
+          });
+          return;
+        }
         if (!e.shiftKey && currentPath && !isDirty) {
           updateStatus(`Sin cambios: ${basename(currentPath)}`);
-          toasts.show({ id: "file.noChanges", kind: "info", message: "Sin cambios para guardar." });
+          notify({ id: "file.noChanges", kind: "info", message: "Sin cambios para guardar." });
           return;
         }
 
@@ -2777,10 +3566,12 @@ window.addEventListener("DOMContentLoaded", async () => {
         updateMeta();
         try {
           if (e.shiftKey) {
+            const extension = extensionForMode(activeDocumentMode);
+            const filter = defaultFileFilterForMode(activeDocumentMode);
             const savePath = await dialogSave({
-              title: "Guardar Markdown como…",
-              defaultPath: await join(vault.notesDir, `${slugify(inferTitle(getEditorValue()))}.md`),
-              filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
+              title: activeDocumentMode === "json" ? "Guardar JSON como…" : "Guardar Markdown como…",
+              defaultPath: await join(vault.notesDir, `${slugify(inferCurrentDocumentTitle(currentPath))}.${extension}`),
+              filters: [filter],
             });
             if (savePath) await saveToPath(savePath);
             return;
@@ -2803,9 +3594,13 @@ window.addEventListener("DOMContentLoaded", async () => {
       void (async () => {
         if (!(await maybeDiscardChanges())) return;
         const selection = await dialogOpen({
-          title: "Abrir Markdown",
+          title: "Abrir documento",
           defaultPath: vault.notesDir,
-          filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
+          filters: [
+            { name: "Documentos", extensions: ["md", "markdown", "json"] },
+            { name: "Markdown", extensions: ["md", "markdown"] },
+            { name: "JSON", extensions: ["json"] },
+          ],
           multiple: false,
           directory: false,
         });
@@ -2819,12 +3614,18 @@ window.addEventListener("DOMContentLoaded", async () => {
       e.preventDefault();
       void (async () => {
         if (!(await maybeDiscardChanges())) return;
-        setEditorValue("");
+        if (activeDocumentMode === "json") {
+          jsonWorkspace.setText("{}", false);
+        } else {
+          setEditorValue("");
+        }
         currentPath = null;
         isDirty = false;
         updateMeta();
+        renderOutline();
+        syncFileButtons();
         updateStatus("Nuevo documento");
-        toasts.show({ kind: "info", message: "Nuevo documento" });
+        notify({ kind: "info", message: "Nuevo documento" });
       })();
     }
   };
@@ -2871,12 +3672,21 @@ window.addEventListener("DOMContentLoaded", async () => {
     history = await loadHistory(vault);
     renderHistory();
     updateStatus("Historial actualizado");
-    toasts.show({ kind: "info", message: "Historial actualizado" });
+    notify({ kind: "info", message: "Historial actualizado" });
+  });
+
+  btnExploreVault.addEventListener("click", () => {
+    void (async () => {
+      closeSettings();
+      await openVaultExplorerAndOpenNote();
+    })();
   });
 
   btnOpenVault.addEventListener("click", async () => {
     try {
+      closeSettings();
       await openPath(vault.notesDir);
+      notify({ kind: "info", message: "Carpeta del vault abierta" });
     } catch {
       // ignore
     }
@@ -2885,12 +3695,24 @@ window.addEventListener("DOMContentLoaded", async () => {
   // Bootstrap initial content
   if (await exists(vault.scratchPath)) {
     try {
-      setEditorValue(await readTextFile(vault.scratchPath));
+      const scratchContent = await readTextFile(vault.scratchPath);
+      if (activeDocumentMode === "json") {
+        jsonWorkspace.setText(scratchContent || "{}", false);
+      } else {
+        setEditorValue(scratchContent);
+      }
     } catch {
-      setEditorValue("");
+      if (activeDocumentMode === "json") {
+        jsonWorkspace.setText("{}", false);
+      } else {
+        setEditorValue("");
+      }
     }
   } else {
-    setEditorValue(`# Pega e Ignora
+    if (activeDocumentMode === "json") {
+      jsonWorkspace.setText("{\n  \"nuevo\": true\n}", false);
+    } else {
+      setEditorValue(`# Pega e Ignora
 
 Esta vista es única: editas y ves el resultado renderizado en el mismo espacio.
 
@@ -2909,10 +3731,17 @@ console.log("Hola mundo")
 
 > Tip: usa \`Ctrl+S\` para guardar en tu carpeta de notas.
 `);
-    await writeTextFile(vault.scratchPath, getEditorValue());
+    }
+    await writeTextFile(vault.scratchPath, getActiveDocumentValue());
   }
 
+  renderOutline();
+  syncFileButtons();
   updateMeta();
   renderHistory();
-  editor.focus();
+  if (activeDocumentMode === "json") {
+    jsonWorkspace.focus();
+  } else {
+    editor.focus();
+  }
 });
