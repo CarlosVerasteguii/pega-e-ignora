@@ -1,12 +1,10 @@
 import "@toast-ui/editor/dist/toastui-editor.css";
 import "./styles.css";
-import Editor from "@toast-ui/editor";
 
 import { join, documentDir } from "@tauri-apps/api/path";
 import { exists, mkdir, readTextFile, remove, rename, writeTextFile } from "@tauri-apps/plugin-fs";
 import { confirm, message, open as dialogOpen, save as dialogSave } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
-import { openVaultExplorer } from "./features/vaultExplorer";
 import { createJsonWorkspace, type JsonWorkspace } from "./features/jsonWorkspace";
 import { createCommandPalette, type CommandPaletteAction } from "./ui/commandPalette";
 import { createFindReplace } from "./ui/findReplace";
@@ -108,6 +106,8 @@ type HeadingEntry = {
   text: string;
   line: number;
 };
+
+type ToastUiEditor = InstanceType<typeof import("@toast-ui/editor").default>;
 
 const THEME_STORAGE_KEY = "markdown-viewer.theme";
 const APP_THEME_STORAGE_KEY = "markdown-viewer.appTheme";
@@ -1530,6 +1530,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   const btnRefreshHistory = document.querySelector<HTMLButtonElement>("#btn-refresh-history");
   const settingsOverlay = document.querySelector<HTMLElement>("#settings-overlay");
   const settingsCloseBtn = document.querySelector<HTMLButtonElement>("#settings-close");
+  const settingsPanel = document.querySelector<HTMLElement>("#settings-overlay .settings-panel");
 
   if (
     !appEl ||
@@ -1586,7 +1587,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     !btnResetPreferences ||
     !btnRefreshHistory ||
     !settingsOverlay ||
-    !settingsCloseBtn
+    !settingsCloseBtn ||
+    !settingsPanel
   ) {
     return;
   }
@@ -2199,9 +2201,9 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   const applySpellcheckToEditor = (enabled: boolean) => {
     document.documentElement.setAttribute("lang", "es");
-    for (const node of editorEl.querySelectorAll<HTMLElement>('[contenteditable="true"]')) {
-      setSpellcheck(node, enabled);
-    }
+    setSpellcheck(editorEl, enabled);
+    const proseMirror = editorEl.querySelector<HTMLElement>(".ProseMirror");
+    if (proseMirror) setSpellcheck(proseMirror, enabled);
     for (const node of editorEl.querySelectorAll<HTMLTextAreaElement>("textarea")) {
       node.spellcheck = enabled;
       node.setAttribute("spellcheck", enabled ? "true" : "false");
@@ -2212,6 +2214,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   const applyOrderedListStartFix = () => {
     for (const ol of editorEl.querySelectorAll<HTMLOListElement>(".ProseMirror ol[start]")) {
       const startRaw = ol.getAttribute("start") ?? "";
+      if ((ol.dataset.pmOlStart ?? "") === startRaw) continue;
+      ol.dataset.pmOlStart = startRaw;
       const start = Number.parseInt(startRaw, 10);
       if (!Number.isFinite(start) || start <= 1) {
         ol.removeAttribute("data-counter-start");
@@ -2301,24 +2305,36 @@ window.addEventListener("DOMContentLoaded", async () => {
     setText(statusEl, "Formato restablecido");
   });
 
-  const editor = new Editor({
-    el: editorEl,
-    height: "100%",
-    initialEditType: "wysiwyg",
-    previewStyle: "tab",
-    hideModeSwitch: true,
-    usageStatistics: false,
-    placeholder: "Escribe aquí…",
-    extendedAutolinks: true,
-    referenceDefinition: true,
-    frontMatter: true,
-    toolbarItems: [
-      ["heading", "bold", "italic", "strike"],
-      ["hr", "quote"],
-      ["ul", "ol", "task", "indent", "outdent"],
-      ["table", "link", "code", "codeblock"],
-    ],
-  });
+  editorEl.innerHTML = `<div class="editor-loading" role="status" aria-live="polite">Cargando editor…</div>`;
+  await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+
+  let editor: ToastUiEditor;
+  try {
+    const { default: Editor } = await import("@toast-ui/editor");
+    editor = new Editor({
+      el: editorEl,
+      height: "100%",
+      initialEditType: "wysiwyg",
+      previewStyle: "tab",
+      hideModeSwitch: true,
+      usageStatistics: false,
+      placeholder: "Escribe aquí…",
+      extendedAutolinks: true,
+      referenceDefinition: true,
+      frontMatter: true,
+      toolbarItems: [
+        ["heading", "bold", "italic", "strike"],
+        ["hr", "quote"],
+        ["ul", "ol", "task", "indent", "outdent"],
+        ["table", "link", "code", "codeblock"],
+      ],
+    });
+  } catch (err) {
+    editorEl.innerHTML = `<div class="editor-loading" role="alert">No pude cargar el editor.</div>`;
+    updateStatus("Editor no disponible");
+    notify({ kind: "error", message: "No pude cargar el editor." });
+    return;
+  }
   const jsonWorkspace = createJsonWorkspace({
     textAreaEl: jsonTextEditorEl,
     treeEl: jsonTreeEl,
@@ -2336,21 +2352,15 @@ window.addEventListener("DOMContentLoaded", async () => {
   });
   jsonWorkspaceTreeApi = jsonWorkspace;
 
-  const syncEditorDomEnhancements = () => {
-    applySpellcheckToEditor(spellcheckEnabled);
-    applyOrderedListStartFix();
-  };
-
-  syncEditorDomEnhancements();
-  const syncEditorDomEnhancementsDebounced = debounce(() => syncEditorDomEnhancements(), 50);
-  const editorDomObserver = new MutationObserver(() => syncEditorDomEnhancementsDebounced());
-  editorDomObserver.observe(editorEl, { childList: true, subtree: true });
+  applySpellcheckToEditor(spellcheckEnabled);
+  applyOrderedListStartFix();
+  const debouncedOrderedListStartFix = debounce(applyOrderedListStartFix, 240);
 
   btnSpellcheck.addEventListener("click", () => {
     spellcheckEnabled = !spellcheckEnabled;
     writeSpellcheckEnabled(spellcheckEnabled);
     updateSpellcheckButton(spellcheckEnabled);
-    syncEditorDomEnhancements();
+    applySpellcheckToEditor(spellcheckEnabled);
     const msg = spellcheckEnabled ? "Ortografía activada" : "Ortografía desactivada";
     setText(statusEl, msg);
     notify({ kind: "info", message: msg });
@@ -2625,6 +2635,20 @@ window.addEventListener("DOMContentLoaded", async () => {
   let settingsHideTimer: number | null = null;
   btnSettings.setAttribute("aria-expanded", "false");
 
+  const getSettingsFocusable = (): HTMLElement[] => {
+    const nodes = Array.from(
+      settingsPanel.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      ),
+    );
+    return nodes.filter((node) => {
+      if (node.hasAttribute("disabled")) return false;
+      if (node.getAttribute("aria-hidden") === "true") return false;
+      if (node.tabIndex < 0) return false;
+      return node.getClientRects().length > 0;
+    });
+  };
+
   const closeSettings = () => {
     if (!settingsOpen) return;
     settingsOpen = false;
@@ -2633,6 +2657,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     window.removeEventListener("keydown", onSettingsKeyDown, true);
 
     const restoreFocus = () => {
+      appEl.removeAttribute("inert");
+      appEl.removeAttribute("aria-hidden");
       const nextFocus = settingsLastActive;
       settingsLastActive = null;
       if (nextFocus && typeof nextFocus.focus === "function") {
@@ -2660,11 +2686,45 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   const onSettingsKeyDown = (event: KeyboardEvent) => {
     if (!settingsOpen) return;
-    if (event.key !== "Escape") return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-    closeSettings();
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      closeSettings();
+      return;
+    }
+
+    if (event.key !== "Tab") return;
+
+    const focusables = getSettingsFocusable();
+    if (focusables.length === 0) {
+      event.preventDefault();
+      settingsCloseBtn.focus();
+      return;
+    }
+
+    const active = document.activeElement as HTMLElement | null;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const goingBack = event.shiftKey;
+
+    if (!active || !settingsPanel.contains(active)) {
+      event.preventDefault();
+      (goingBack ? last : first).focus();
+      return;
+    }
+
+    if (!goingBack && active === last) {
+      event.preventDefault();
+      first.focus();
+      return;
+    }
+
+    if (goingBack && active === first) {
+      event.preventDefault();
+      last.focus();
+    }
   };
 
   const openSettings = () => {
@@ -2672,6 +2732,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     settingsOpen = true;
     btnSettings.setAttribute("aria-expanded", "true");
     settingsLastActive = (document.activeElement as HTMLElement | null) ?? null;
+    appEl.setAttribute("inert", "");
+    appEl.setAttribute("aria-hidden", "true");
 
     if (settingsHideTimer !== null) {
       window.clearTimeout(settingsHideTimer);
@@ -2992,7 +3054,9 @@ window.addEventListener("DOMContentLoaded", async () => {
       if (entries.length === 0) {
         const empty = document.createElement("li");
         empty.className = "list-empty";
-        empty.textContent = "Sin nodos JSON.";
+        empty.textContent = jsonTreeVisible
+          ? "Estructura JSON no disponible (árbol deshabilitado o analizando)."
+          : "Árbol JSON oculto. Activa “Árbol” para ver estructura.";
         outlineEl.append(empty);
         return;
       }
@@ -3187,6 +3251,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   };
 
   const openVaultExplorerAndOpenNote = async () => {
+    const { openVaultExplorer } = await import("./features/vaultExplorer");
     const selected = await openVaultExplorer({
       vaultDir: vault.vaultDir,
       notesDir: vault.notesDir,
@@ -3391,7 +3456,7 @@ window.addEventListener("DOMContentLoaded", async () => {
           spellcheckEnabled = !spellcheckEnabled;
           writeSpellcheckEnabled(spellcheckEnabled);
           updateSpellcheckButton(spellcheckEnabled);
-          syncEditorDomEnhancements();
+          applySpellcheckToEditor(spellcheckEnabled);
           const msg = spellcheckEnabled ? "Ortografía activada" : "Ortografía desactivada";
           setText(statusEl, msg);
           notify({ kind: "info", message: msg });
@@ -3452,6 +3517,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     updateMeta();
     if (autosaveEnabled) debouncedAutosave();
     debouncedOutlineRender();
+    debouncedOrderedListStartFix();
   });
 
   jsonWorkspace.onChange(() => {

@@ -137,6 +137,10 @@ function pathToText(path: JsonPath): string {
 }
 
 function cloneJsonValue<T extends JsonValue>(value: T): T {
+  const maybeStructuredClone = (globalThis as unknown as { structuredClone?: (input: unknown) => unknown }).structuredClone;
+  if (typeof maybeStructuredClone === "function") {
+    return maybeStructuredClone(value) as T;
+  }
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
@@ -169,11 +173,9 @@ function getParentAtPath(
 }
 
 function findPathRow(treeEl: HTMLElement, path: string): HTMLElement | null {
-  const rows = treeEl.querySelectorAll<HTMLElement>("[data-json-path]");
-  for (const row of rows) {
-    if ((row.dataset.jsonPath ?? "") === path) return row;
-  }
-  return null;
+  const css = (globalThis as unknown as { CSS?: { escape?: (value: string) => string } }).CSS;
+  const escaped = typeof css?.escape === "function" ? css.escape(path) : path.replace(/["\\]/g, "\\$&");
+  return treeEl.querySelector<HTMLElement>(`[data-json-path="${escaped}"]`);
 }
 
 export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWorkspace {
@@ -191,13 +193,56 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
   let parseError: ParseErrorInfo | null = null;
   let treeReadOnly = false;
   let nodeCount = 1;
+  let nodeCountKnown = true;
   let byteCount = 0;
+  let analysisPending = false;
+  let parseToken = 0;
   let structureEntries: JsonStructureEntry[] = [];
   let selectedPath = ROOT_PATH;
   const expandedPaths = new Set<string>([ROOT_PATH]);
   let treeVisible = options.treeVisible ?? true;
   let isApplyingText = false;
   let textInputTimer: number | null = null;
+  let analysisTimer: number | null = null;
+  const encoder = new TextEncoder();
+
+  const scheduleAnalysis = () => {
+    if (!treeVisible) return;
+    if (analysisTimer !== null) window.clearTimeout(analysisTimer);
+    analysisTimer = window.setTimeout(() => {
+      analysisTimer = null;
+      const token = parseToken;
+      const run = () => {
+        if (parseToken !== token) return;
+        if (!treeVisible) return;
+        if (parseError) return;
+        analysisPending = false;
+        byteCount = encoder.encode(text).length;
+        if (byteCount > maxBytes) {
+          treeReadOnly = true;
+          nodeCountKnown = false;
+          nodeCount = 0;
+          updateStatus();
+          renderTree();
+          return;
+        }
+        nodeCount = countJsonNodes(parsedValue);
+        nodeCountKnown = true;
+        treeReadOnly = nodeCount > maxNodes;
+        if (treeReadOnly && !expandedPaths.has(ROOT_PATH)) expandedPaths.add(ROOT_PATH);
+        updateStatus();
+        renderTree();
+      };
+
+      const maybeIdle = (globalThis as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number })
+        .requestIdleCallback;
+      if (typeof maybeIdle === "function") {
+        maybeIdle(run, { timeout: 800 });
+        return;
+      }
+      window.setTimeout(run, 0);
+    }, 240);
+  };
 
   const inform = (message: string, kind: "info" | "warning" | "error") => {
     if (!options.onInform) return;
@@ -218,9 +263,20 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
       statusEl.textContent = `JSON inválido · L${parseError.line}:C${parseError.column}`;
       return;
     }
+    if (!treeVisible) {
+      statusEl.dataset.state = "valid";
+      statusEl.textContent = "JSON válido";
+      return;
+    }
+    if (analysisPending) {
+      statusEl.dataset.state = "valid";
+      statusEl.textContent = "JSON válido · analizando…";
+      return;
+    }
     if (treeReadOnly) {
       statusEl.dataset.state = "readonly";
-      statusEl.textContent = `JSON válido · árbol solo lectura (${formatBytes(byteCount)}, ${nodeCount.toLocaleString()} nodos)`;
+      const nodeSuffix = nodeCountKnown ? `, ${nodeCount.toLocaleString()} nodos` : "";
+      statusEl.textContent = `JSON válido · árbol solo lectura (${formatBytes(byteCount)}${nodeSuffix})`;
       return;
     }
     statusEl.dataset.state = "valid";
@@ -239,7 +295,7 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
     const changed = mutate(draft);
     if (!changed) return false;
     const nextText = JSON.stringify(draft, null, 2);
-    setText(nextText, true);
+    setTextInternal(nextText, true, "tree");
     return true;
   };
 
@@ -289,7 +345,7 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
     if (path.length === 0) {
       const nextText = JSON.stringify(cloneJsonValue(value), null, 2);
       if (nextText === text) return false;
-      setText(nextText, true);
+      setTextInternal(nextText, true, "tree");
       return true;
     }
     return applyMutation((draft) => {
@@ -663,6 +719,23 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
       return;
     }
 
+    if (analysisPending) {
+      const empty = document.createElement("div");
+      empty.className = "json-tree-empty";
+      empty.textContent = "Analizando JSON…";
+      treeEl.append(empty);
+      return;
+    }
+
+    if (treeReadOnly) {
+      const nodeSuffix = nodeCountKnown ? `, ${nodeCount.toLocaleString()} nodos` : "";
+      const empty = document.createElement("div");
+      empty.className = "json-tree-empty";
+      empty.textContent = `Árbol deshabilitado por tamaño (${formatBytes(byteCount)}${nodeSuffix}). Usa el panel “Texto JSON”.`;
+      treeEl.append(empty);
+      return;
+    }
+
     const editable = !treeReadOnly;
     treeEl.append(renderNode(parsedValue, [], 0, null, [], null, 0, editable));
   };
@@ -673,38 +746,62 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
     if (!treeVisible) {
       structureEntries = [];
       treeEl.innerHTML = "";
+      analysisPending = false;
+      if (analysisTimer !== null) {
+        window.clearTimeout(analysisTimer);
+        analysisTimer = null;
+      }
       return;
     }
-    renderTree();
+    parseText("program");
   };
 
-  const parseText = () => {
-    byteCount = new TextEncoder().encode(text).length;
+  const parseText = (reason: "input" | "program" | "tree") => {
+    parseToken += 1;
     try {
       const parsed = JSON.parse(text) as JsonValue;
       parsedValue = parsed;
       parseError = null;
-      nodeCount = countJsonNodes(parsedValue);
-      treeReadOnly = byteCount > maxBytes || nodeCount > maxNodes;
-      if (treeReadOnly && !expandedPaths.has(ROOT_PATH)) expandedPaths.add(ROOT_PATH);
+      if (!treeVisible) {
+        analysisPending = false;
+        treeReadOnly = false;
+        nodeCountKnown = false;
+        nodeCount = 0;
+      } else if (reason === "tree") {
+        analysisPending = false;
+      } else {
+        analysisPending = true;
+        treeReadOnly = false;
+        nodeCountKnown = false;
+        nodeCount = 0;
+        scheduleAnalysis();
+      }
     } catch (error) {
       parseError = parseErrorInfo(text, error);
       nodeCount = 1;
       treeReadOnly = false;
+      nodeCountKnown = true;
+      analysisPending = false;
+      if (analysisTimer !== null) {
+        window.clearTimeout(analysisTimer);
+        analysisTimer = null;
+      }
     }
     updateStatus();
     updateButtons();
     renderTree();
   };
 
-  const setText = (nextText: string, emitChange = false) => {
+  const setTextInternal = (nextText: string, emitChange: boolean, reason: "input" | "program" | "tree") => {
     isApplyingText = true;
     text = nextText;
     if (textAreaEl.value !== text) textAreaEl.value = text;
     isApplyingText = false;
-    parseText();
+    parseText(reason);
     if (emitChange) notify();
   };
+
+  const setText = (nextText: string, emitChange = false) => setTextInternal(nextText, emitChange, "program");
 
   const scheduleParseFromInput = () => {
     if (textInputTimer !== null) window.clearTimeout(textInputTimer);
@@ -712,7 +809,7 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
       textInputTimer = null;
       if (isApplyingText) return;
       text = textAreaEl.value;
-      parseText();
+      parseText("input");
       notify();
     }, 170);
   };
