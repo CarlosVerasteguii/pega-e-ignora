@@ -10,6 +10,13 @@ export type JsonStructureEntry = {
   kind: "object" | "array" | "string" | "number" | "boolean" | "null";
 };
 
+export type JsonSelectionSource = "tree" | "outline" | "editor" | "program";
+
+export type JsonSelectionChange = {
+  path: string | null;
+  source: JsonSelectionSource;
+};
+
 export type JsonWorkspaceChange = {
   text: string;
   valid: boolean;
@@ -26,6 +33,16 @@ export type JsonWorkspace = {
   pretty: () => boolean;
   minify: () => boolean;
   getStructureEntries: () => JsonStructureEntry[];
+  getSelectedPath: () => string | null;
+  selectPath: (
+    path: string | null,
+    options?: {
+      source: JsonSelectionSource;
+      reveal?: boolean;
+      focusTarget?: "tree" | "editor" | "none";
+    },
+  ) => void;
+  onSelectionChange: (listener: (change: JsonSelectionChange) => void) => () => void;
   focusPath: (path: string) => void;
 };
 
@@ -44,6 +61,17 @@ export type CreateJsonWorkspaceOptions = {
 };
 
 type JsonKind = JsonStructureEntry["kind"];
+
+type JsonPathIndexEntry = {
+  path: string;
+  pathSegments: JsonPath;
+  depth: number;
+  label: string;
+  kind: JsonKind;
+  start: number;
+  end: number;
+  focusStart: number;
+};
 
 type ParseErrorInfo = {
   message: string;
@@ -399,6 +427,252 @@ function pathToText(path: JsonPath): string {
   return out;
 }
 
+function pathTextToSegments(pathText: string): JsonPath | null {
+  if (pathText === ROOT_PATH) return [];
+  if (!pathText.startsWith(ROOT_PATH)) return null;
+
+  const segments: JsonPath = [];
+  let index = ROOT_PATH.length;
+  while (index < pathText.length) {
+    const ch = pathText[index];
+    if (ch === ".") {
+      let end = index + 1;
+      while (end < pathText.length && /[A-Za-z0-9_$]/.test(pathText[end])) end += 1;
+      const key = pathText.slice(index + 1, end);
+      if (!key) return null;
+      segments.push(key);
+      index = end;
+      continue;
+    }
+    if (ch === "[") {
+      if (pathText[index + 1] === '"') {
+        let end = index + 2;
+        let escaped = false;
+        while (end < pathText.length) {
+          const current = pathText[end];
+          if (escaped) {
+            escaped = false;
+            end += 1;
+            continue;
+          }
+          if (current === "\\") {
+            escaped = true;
+            end += 1;
+            continue;
+          }
+          if (current === '"') break;
+          end += 1;
+        }
+        if (pathText[end] !== '"' || pathText[end + 1] !== "]") return null;
+        const raw = pathText.slice(index + 1, end + 1);
+        try {
+          segments.push(JSON.parse(raw) as string);
+        } catch {
+          return null;
+        }
+        index = end + 2;
+        continue;
+      }
+      let end = index + 1;
+      while (end < pathText.length && pathText[end] !== "]") end += 1;
+      if (pathText[end] !== "]") return null;
+      const raw = pathText.slice(index + 1, end);
+      const parsed = Number(raw);
+      if (!Number.isInteger(parsed)) return null;
+      segments.push(parsed);
+      index = end + 1;
+      continue;
+    }
+    return null;
+  }
+
+  return segments;
+}
+
+function buildPathAncestorTexts(pathSegments: JsonPath): string[] {
+  const ancestors: string[] = [];
+  for (let i = 0; i <= pathSegments.length; i += 1) {
+    ancestors.push(pathToText(pathSegments.slice(0, i)));
+  }
+  return ancestors;
+}
+
+function skipJsonWhitespace(text: string, index: number): number {
+  let next = index;
+  while (next < text.length && text[next] <= " ") next += 1;
+  return next;
+}
+
+function parseJsonStringToken(
+  text: string,
+  index: number,
+): { raw: string; inner: string; end: number } {
+  if (text[index] !== '"') {
+    throw new Error(`Expected string token at ${index}`);
+  }
+
+  let end = index + 1;
+  let escaped = false;
+  while (end < text.length) {
+    const current = text[end];
+    if (escaped) {
+      escaped = false;
+      end += 1;
+      continue;
+    }
+    if (current === "\\") {
+      escaped = true;
+      end += 1;
+      continue;
+    }
+    if (current === '"') {
+      end += 1;
+      break;
+    }
+    end += 1;
+  }
+
+  const raw = text.slice(index, end);
+  const inner = raw.length >= 2 ? raw.slice(1, raw.endsWith('"') ? -1 : raw.length) : raw;
+  return { raw, inner, end };
+}
+
+function buildJsonPathIndex(text: string): JsonPathIndexEntry[] {
+  const entries: JsonPathIndexEntry[] = [];
+
+  const addEntry = (
+    pathSegments: JsonPath,
+    label: string,
+    kind: JsonKind,
+    start: number,
+    focusStart: number,
+  ): JsonPathIndexEntry => {
+    const entry: JsonPathIndexEntry = {
+      path: pathToText(pathSegments),
+      pathSegments: [...pathSegments],
+      depth: pathSegments.length,
+      label,
+      kind,
+      start,
+      end: start,
+      focusStart,
+    };
+    entries.push(entry);
+    return entry;
+  };
+
+  const parseValue = (
+    rawIndex: number,
+    pathSegments: JsonPath,
+    label: string,
+    rangeStartOverride?: number,
+    focusStartOverride?: number,
+  ): { end: number; kind: JsonKind } => {
+    let index = skipJsonWhitespace(text, rawIndex);
+    const rangeStart = rangeStartOverride ?? index;
+    const focusStart = focusStartOverride ?? index;
+    const current = text[index];
+
+    if (current === "{") {
+      const entry = addEntry(pathSegments, label, "object", rangeStart, focusStart);
+      index += 1;
+      index = skipJsonWhitespace(text, index);
+      if (text[index] === "}") {
+        entry.end = index + 1;
+        return { end: entry.end, kind: "object" };
+      }
+
+      while (index < text.length) {
+        const keyStart = skipJsonWhitespace(text, index);
+        const keyToken = parseJsonStringToken(text, keyStart);
+        const key = unescapeJsonStringInner(keyToken.inner, 400);
+        index = skipJsonWhitespace(text, keyToken.end);
+        if (text[index] !== ":") throw new Error(`Expected ":" at ${index}`);
+        index += 1;
+        const childPath = [...pathSegments, key];
+        const child = parseValue(index, childPath, key, keyStart, keyStart);
+        index = skipJsonWhitespace(text, child.end);
+        if (text[index] === ",") {
+          index += 1;
+          continue;
+        }
+        if (text[index] === "}") {
+          entry.end = index + 1;
+          return { end: entry.end, kind: "object" };
+        }
+        throw new Error(`Expected "}" at ${index}`);
+      }
+      throw new Error("Unexpected end of object");
+    }
+
+    if (current === "[") {
+      const entry = addEntry(pathSegments, label, "array", rangeStart, focusStart);
+      index += 1;
+      index = skipJsonWhitespace(text, index);
+      if (text[index] === "]") {
+        entry.end = index + 1;
+        return { end: entry.end, kind: "array" };
+      }
+
+      let itemIndex = 0;
+      while (index < text.length) {
+        const itemStart = skipJsonWhitespace(text, index);
+        const childPath = [...pathSegments, itemIndex];
+        const child = parseValue(itemStart, childPath, `[${itemIndex}]`, itemStart, itemStart);
+        index = skipJsonWhitespace(text, child.end);
+        itemIndex += 1;
+        if (text[index] === ",") {
+          index += 1;
+          continue;
+        }
+        if (text[index] === "]") {
+          entry.end = index + 1;
+          return { end: entry.end, kind: "array" };
+        }
+        throw new Error(`Expected "]" at ${index}`);
+      }
+      throw new Error("Unexpected end of array");
+    }
+
+    if (current === '"') {
+      const token = parseJsonStringToken(text, index);
+      const entry = addEntry(pathSegments, label, "string", rangeStart, focusStart);
+      entry.end = token.end;
+      return { end: token.end, kind: "string" };
+    }
+
+    if (current === "t" && text.startsWith("true", index)) {
+      const entry = addEntry(pathSegments, label, "boolean", rangeStart, focusStart);
+      entry.end = index + 4;
+      return { end: entry.end, kind: "boolean" };
+    }
+
+    if (current === "f" && text.startsWith("false", index)) {
+      const entry = addEntry(pathSegments, label, "boolean", rangeStart, focusStart);
+      entry.end = index + 5;
+      return { end: entry.end, kind: "boolean" };
+    }
+
+    if (current === "n" && text.startsWith("null", index)) {
+      const entry = addEntry(pathSegments, label, "null", rangeStart, focusStart);
+      entry.end = index + 4;
+      return { end: entry.end, kind: "null" };
+    }
+
+    const match = JSON_NUMBER_RE.exec(text.slice(index));
+    if (match) {
+      const entry = addEntry(pathSegments, label, "number", rangeStart, focusStart);
+      entry.end = index + match[0].length;
+      return { end: entry.end, kind: "number" };
+    }
+
+    throw new Error(`Unexpected JSON token at ${index}`);
+  };
+
+  parseValue(0, [], ROOT_PATH);
+  return entries;
+}
+
 function cloneJsonValue<T extends JsonValue>(value: T): T {
   const maybeStructuredClone = (globalThis as unknown as { structuredClone?: (input: unknown) => unknown }).structuredClone;
   if (typeof maybeStructuredClone === "function") {
@@ -452,6 +726,7 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
   const prettyBtn = options.prettyBtn;
   const minifyBtn = options.minifyBtn;
   const listeners = new Set<(change: JsonWorkspaceChange) => void>();
+  const selectionListeners = new Set<(change: JsonSelectionChange) => void>();
 
   let text = "";
   let parsedValue: JsonValue = {};
@@ -463,7 +738,9 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
   let analysisPending = false;
   let parseToken = 0;
   let structureEntries: JsonStructureEntry[] = [];
-  let selectedPath = ROOT_PATH;
+  let pathIndexEntries: JsonPathIndexEntry[] = [];
+  let pathIndexByPath = new Map<string, JsonPathIndexEntry>();
+  let selectedPath: string | null = ROOT_PATH;
   const expandedPaths = new Set<string>([ROOT_PATH]);
   let treeVisible = options.treeVisible ?? true;
   let isApplyingText = false;
@@ -472,6 +749,7 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
   const encoder = new TextEncoder();
   let highlightTimer: number | null = null;
   let lastHighlightText = "";
+  let selectionSyncTimer: number | null = null;
 
   const syncHighlightScroll = () => {
     if (!highlightEl) return;
@@ -551,6 +829,127 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
       valid: parseError === null,
     };
     for (const listener of listeners) listener(payload);
+  };
+
+  const notifySelection = (payload: JsonSelectionChange) => {
+    for (const listener of selectionListeners) listener(payload);
+  };
+
+  const syncStructureEntriesFromIndex = () => {
+    structureEntries = pathIndexEntries.map((entry) => ({
+      path: entry.path,
+      depth: entry.depth,
+      label: entry.label,
+      kind: entry.kind,
+    }));
+  };
+
+  const getSelectionEntry = (path: string | null): JsonPathIndexEntry | null => {
+    if (!path) return null;
+    return pathIndexByPath.get(path) ?? null;
+  };
+
+  const resolveFallbackPath = (path: string | null): string | null => {
+    if (!path || pathIndexEntries.length === 0) return null;
+    if (pathIndexByPath.has(path)) return path;
+    const segments = pathTextToSegments(path);
+    if (!segments) return pathIndexByPath.has(ROOT_PATH) ? ROOT_PATH : null;
+    for (let size = segments.length - 1; size >= 0; size -= 1) {
+      const candidate = pathToText(segments.slice(0, size));
+      if (pathIndexByPath.has(candidate)) return candidate;
+    }
+    return pathIndexByPath.has(ROOT_PATH) ? ROOT_PATH : null;
+  };
+
+  const ensureExpandedAncestors = (path: string | null) => {
+    const entry = getSelectionEntry(resolveFallbackPath(path));
+    if (!entry) return;
+    for (const ancestor of buildPathAncestorTexts(entry.pathSegments.slice(0, -1))) {
+      expandedPaths.add(ancestor);
+    }
+    if (entry.kind === "object" || entry.kind === "array") {
+      expandedPaths.add(entry.path);
+    }
+  };
+
+  const focusEditorPath = (path: string | null) => {
+    const entry = getSelectionEntry(resolveFallbackPath(path));
+    if (!entry) return;
+    textAreaEl.focus();
+    textAreaEl.setSelectionRange(entry.focusStart, entry.focusStart);
+    const lineHeight = Number.parseFloat(getComputedStyle(textAreaEl).lineHeight) || 20;
+    const valueBefore = text.slice(0, entry.focusStart);
+    const row = valueBefore.split("\n").length - 1;
+    textAreaEl.scrollTop = Math.max(0, row * lineHeight - textAreaEl.clientHeight * 0.35);
+    syncHighlightScroll();
+  };
+
+  const applySelectionToTree = (path: string | null, reveal: boolean) => {
+    if (!treeVisible) return;
+    renderTree();
+    if (!path) return;
+    const row = findPathRow(treeEl, path);
+    if (!row) return;
+    row.classList.add("is-selected");
+    if (reveal) row.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  };
+
+  const selectPath = (
+    path: string | null,
+    options: {
+      source: JsonSelectionSource;
+      reveal?: boolean;
+      focusTarget?: "tree" | "editor" | "none";
+    } = { source: "program" },
+  ) => {
+    const normalizedPath = parseError ? null : resolveFallbackPath(path);
+    const nextPath = normalizedPath ?? (parseError ? null : (pathIndexByPath.has(ROOT_PATH) ? ROOT_PATH : null));
+    const changed = nextPath !== selectedPath;
+    selectedPath = nextPath;
+
+    if (!parseError && nextPath) {
+      ensureExpandedAncestors(nextPath);
+    }
+
+    if (treeVisible) {
+      applySelectionToTree(nextPath, options.reveal ?? false);
+    }
+
+    if (options.focusTarget === "editor" && nextPath) {
+      focusEditorPath(nextPath);
+    }
+
+    if (changed || options.reveal || options.focusTarget === "editor") {
+      notifySelection({ path: nextPath, source: options.source });
+    }
+  };
+
+  const resolvePathAtIndex = (index: number): string | null => {
+    if (parseError || pathIndexEntries.length === 0) return null;
+
+    let bestContaining: JsonPathIndexEntry | null = null;
+    for (const entry of pathIndexEntries) {
+      if (index < entry.start || index > entry.end) continue;
+      if (!bestContaining || entry.end - entry.start < bestContaining.end - bestContaining.start) {
+        bestContaining = entry;
+      }
+    }
+    if (bestContaining) return bestContaining.path;
+
+    let bestNearest: JsonPathIndexEntry | null = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (const entry of pathIndexEntries) {
+      const distance = index < entry.start ? entry.start - index : index - entry.end;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestNearest = entry;
+        continue;
+      }
+      if (distance === bestDistance && bestNearest && entry.end - entry.start < bestNearest.end - bestNearest.start) {
+        bestNearest = entry;
+      }
+    }
+    return bestNearest?.path ?? null;
   };
 
   const updateStatus = () => {
@@ -835,10 +1234,7 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
     row.dataset.jsonPath = pathText;
     if (selectedPath === pathText) row.classList.add("is-selected");
     row.addEventListener("click", () => {
-      selectedPath = pathText;
-      const current = treeEl.querySelector<HTMLElement>(".json-row.is-selected");
-      if (current && current !== row) current.classList.remove("is-selected");
-      row.classList.add("is-selected");
+      selectPath(pathText, { source: "tree", reveal: true, focusTarget: "none" });
     });
 
     const rowMain = document.createElement("div");
@@ -948,18 +1344,6 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
     row.append(rowMain, actions);
     nodeEl.append(row);
 
-    structureEntries.push({
-      path: pathText,
-      depth,
-      label:
-        parentKind === "object" && typeof key === "string"
-          ? key
-          : parentKind === "array" && typeof key === "number"
-            ? `[${key}]`
-            : ROOT_PATH,
-      kind,
-    });
-
     if ((kind === "object" || kind === "array") && expandedPaths.has(pathText)) {
       const childrenWrap = document.createElement("div");
       childrenWrap.className = "json-children";
@@ -1040,7 +1424,6 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
     if (treeVisible === visible) return;
     treeVisible = visible;
     if (!treeVisible) {
-      structureEntries = [];
       treeEl.innerHTML = "";
       analysisPending = false;
       if (analysisTimer !== null) {
@@ -1058,6 +1441,10 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
       const parsed = JSON.parse(text) as JsonValue;
       parsedValue = parsed;
       parseError = null;
+      pathIndexEntries = buildJsonPathIndex(text);
+      pathIndexByPath = new Map(pathIndexEntries.map((entry) => [entry.path, entry]));
+      syncStructureEntriesFromIndex();
+      selectedPath = resolveFallbackPath(selectedPath) ?? ROOT_PATH;
       if (!treeVisible) {
         analysisPending = false;
         treeReadOnly = false;
@@ -1074,6 +1461,13 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
       }
     } catch (error) {
       parseError = parseErrorInfo(text, error);
+      pathIndexEntries = [];
+      pathIndexByPath = new Map();
+      structureEntries = [];
+      if (selectedPath !== null) {
+        selectedPath = null;
+        notifySelection({ path: null, source: "program" });
+      }
       nodeCount = 1;
       treeReadOnly = false;
       nodeCountKnown = true;
@@ -1093,8 +1487,16 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
     text = nextText;
     if (textAreaEl.value !== text) textAreaEl.value = text;
     isApplyingText = false;
+    const previousSelectedPath = selectedPath;
     parseText(reason);
     scheduleHighlight();
+    const selectionChanged = previousSelectedPath !== selectedPath;
+    if (!parseError && selectedPath) {
+      applySelectionToTree(selectedPath, false);
+    }
+    if (selectionChanged && !(parseError && selectedPath === null)) {
+      notifySelection({ path: selectedPath, source: reason === "tree" ? "tree" : "program" });
+    }
     if (emitChange) notify();
   };
 
@@ -1105,22 +1507,41 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
     textInputTimer = window.setTimeout(() => {
       textInputTimer = null;
       if (isApplyingText) return;
+      const previousSelectedPath = selectedPath;
       text = textAreaEl.value;
       parseText("input");
       scheduleHighlight();
       syncHighlightScroll();
+      if (!parseError && selectedPath) {
+        applySelectionToTree(selectedPath, false);
+      }
+      if (previousSelectedPath !== selectedPath && !(parseError && selectedPath === null)) {
+        notifySelection({ path: selectedPath, source: parseError ? "program" : "editor" });
+      }
+      scheduleSelectionSyncFromEditor();
       notify();
     }, 170);
   };
 
+  const scheduleSelectionSyncFromEditor = () => {
+    if (selectionSyncTimer !== null) window.clearTimeout(selectionSyncTimer);
+    selectionSyncTimer = window.setTimeout(() => {
+      selectionSyncTimer = null;
+      if (parseError) {
+        if (selectedPath !== null) {
+          selectedPath = null;
+          notifySelection({ path: null, source: "editor" });
+        }
+        return;
+      }
+      if (document.activeElement !== textAreaEl) return;
+      const nextPath = resolvePathAtIndex(textAreaEl.selectionStart ?? 0);
+      selectPath(nextPath, { source: "editor", reveal: true, focusTarget: "none" });
+    }, 130);
+  };
+
   const focusPath = (path: string) => {
-    selectedPath = path;
-    if (!treeVisible) return;
-    renderTree();
-    const row = findPathRow(treeEl, path);
-    if (!row) return;
-    row.classList.add("is-selected");
-    row.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    selectPath(path, { source: "outline", reveal: true, focusTarget: "tree" });
   };
 
   const pretty = (): boolean => {
@@ -1147,6 +1568,13 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
 
   textAreaEl.addEventListener("input", scheduleParseFromInput);
   textAreaEl.addEventListener("scroll", syncHighlightScroll, { passive: true });
+  textAreaEl.addEventListener("click", scheduleSelectionSyncFromEditor);
+  textAreaEl.addEventListener("keyup", scheduleSelectionSyncFromEditor);
+  textAreaEl.addEventListener("select", scheduleSelectionSyncFromEditor);
+  document.addEventListener("selectionchange", () => {
+    if (document.activeElement !== textAreaEl) return;
+    scheduleSelectionSyncFromEditor();
+  });
   prettyBtn.addEventListener("click", () => {
     pretty();
   });
@@ -1171,6 +1599,12 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
     pretty,
     minify,
     getStructureEntries: () => structureEntries.slice(),
+    getSelectedPath: () => selectedPath,
+    selectPath,
+    onSelectionChange: (listener) => {
+      selectionListeners.add(listener);
+      return () => selectionListeners.delete(listener);
+    },
     focusPath,
   };
 }

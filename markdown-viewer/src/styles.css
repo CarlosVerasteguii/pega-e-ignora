@@ -683,6 +683,12 @@ button.icon-only svg {
   background: var(--history-hover-bg);
 }
 
+.outline-item.is-active {
+  border-color: var(--focus-ring);
+  background: var(--history-hover-bg);
+  box-shadow: 0 0 0 2px var(--surface-tint-soft);
+}
+
 .outline-item[data-level="1"] {
   border-left: 3px solid var(--accent-1);
 }

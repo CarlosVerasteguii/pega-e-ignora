@@ -235,7 +235,7 @@ async function main() {
       );
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    await page.waitForTimeout(240);
+    await page.waitForTimeout(420);
     await page.locator("#typography-font-size").evaluate((input) => {
       input.value = "18";
       input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -254,7 +254,7 @@ async function main() {
         toggle.click();
       }
     });
-    await page.waitForTimeout(240);
+    await page.waitForTimeout(360);
     await page.screenshot({
       path: path.join(ARTIFACTS_DIR, "sidebar-json-typography-success.png"),
       fullPage: true,
@@ -331,6 +331,89 @@ async function main() {
       parseFloat(jsonState.jsonTree.gap) > parseFloat(jsonTypographyBaseline.treeGap),
       `Esperaba mayor separación en el árbol JSON. Antes: ${jsonTypographyBaseline.treeGap}, después: ${jsonState.jsonTree.gap}`,
     );
+
+    await page.evaluate(() => {
+      const target = Array.from(document.querySelectorAll(".json-row")).find(
+        (node) => node instanceof HTMLElement && node.dataset.jsonPath === "$.meta",
+      );
+      if (!(target instanceof HTMLElement)) {
+        throw new Error("No encontré la fila $.meta en el árbol JSON.");
+      }
+      target.click();
+    });
+    await page.waitForTimeout(220);
+
+    const treeToOutlineSync = await page.evaluate(() => {
+      const activeTree = Array.from(document.querySelectorAll(".json-row.is-selected")).find(
+        (node) => node instanceof HTMLElement && node.dataset.jsonPath === "$.meta",
+      );
+      const status = document.querySelector("#status");
+      if (!(activeTree instanceof HTMLElement) || !(status instanceof HTMLElement)) {
+        throw new Error("No pude validar la sincronización tree -> status.");
+      }
+      return {
+        status: status.textContent?.trim() ?? "",
+        treePath: activeTree.dataset.jsonPath ?? null,
+      };
+    });
+
+    assert.equal(treeToOutlineSync.treePath, "$.meta");
+    assert.equal(treeToOutlineSync.status, "Nodo: $.meta");
+
+    await page.evaluate(() => {
+      const textarea = document.querySelector("#json-text-editor");
+      if (!(textarea instanceof HTMLTextAreaElement)) {
+        throw new Error("No pude mover el caret del editor JSON.");
+      }
+      const text = textarea.value;
+      const caret = text.indexOf('"owner": "qa"') + 3;
+      textarea.focus();
+      textarea.setSelectionRange(caret, caret);
+      textarea.dispatchEvent(new Event("select", { bubbles: true }));
+    });
+    await page.waitForTimeout(260);
+
+    const editorToAllSync = await page.evaluate(() => {
+      const activeTree = Array.from(document.querySelectorAll(".json-row.is-selected")).find(
+        (node) => node instanceof HTMLElement && node.dataset.jsonPath === "$.meta.owner",
+      );
+      const status = document.querySelector("#status");
+      if (!(activeTree instanceof HTMLElement) || !(status instanceof HTMLElement)) {
+        throw new Error("No pude validar la sincronización editor -> tree.");
+      }
+      return {
+        treePath: activeTree.dataset.jsonPath ?? null,
+        status: status.textContent?.trim() ?? "",
+      };
+    });
+
+    assert.equal(editorToAllSync.treePath, "$.meta.owner");
+    assert.equal(editorToAllSync.status, "Nodo: $.meta.owner");
+
+    await page.evaluate(() => {
+      const textarea = document.querySelector("#json-text-editor");
+      if (!(textarea instanceof HTMLTextAreaElement)) {
+        throw new Error("No pude preparar el caso readonly del árbol JSON.");
+      }
+      const bigPayload = Array.from({ length: 12000 }, (_, index) => ({ index, value: `node-${index}` }));
+      textarea.value = JSON.stringify(bigPayload);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await page.waitForTimeout(1400);
+
+    const readonlyState = await page.evaluate(() => {
+      const parseStatus = document.querySelector("#json-parse-status");
+      const status = document.querySelector("#status");
+      if (!(parseStatus instanceof HTMLElement) || !(status instanceof HTMLElement)) {
+        throw new Error("No pude leer el estado readonly del árbol JSON.");
+      }
+      return {
+        parseStatus: parseStatus.textContent?.trim() ?? "",
+        appStatus: status.textContent?.trim() ?? "",
+      };
+    });
+
+    assert.match(readonlyState.parseStatus, /árbol solo lectura/i);
   } catch (error) {
     if (page) {
       await page.screenshot({ path: path.join(ARTIFACTS_DIR, "sidebar-visual-failure.png"), fullPage: true });

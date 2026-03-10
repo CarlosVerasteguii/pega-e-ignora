@@ -2407,6 +2407,144 @@ window.addEventListener("DOMContentLoaded", async () => {
   });
   jsonWorkspaceTreeApi = jsonWorkspace;
 
+  let jsonUiSyncTimer: number | null = null;
+  const scheduleJsonUiSync = ({
+    revealOutline = false,
+    delayMs = 0,
+    rerenderOutline = false,
+    updateStatusText = false,
+  }: {
+    revealOutline?: boolean;
+    delayMs?: number;
+    rerenderOutline?: boolean;
+    updateStatusText?: boolean;
+  } = {}) => {
+    if (jsonUiSyncTimer !== null) {
+      window.clearTimeout(jsonUiSyncTimer);
+    }
+    jsonUiSyncTimer = window.setTimeout(() => {
+      jsonUiSyncTimer = null;
+      if (activeDocumentMode !== "json") return;
+      if (rerenderOutline) renderOutline();
+      const path = jsonWorkspace.getSelectedPath();
+      syncJsonOutlineSelection(path, revealOutline);
+      if (updateStatusText && path) {
+        updateStatus(`Nodo: ${path}`);
+      }
+    }, delayMs);
+  };
+
+  const syncJsonOutlineSelection = (path: string | null, reveal = false) => {
+    if (activeDocumentMode !== "json") return;
+    let activeItem: HTMLElement | null = null;
+    for (const item of outlineEl.querySelectorAll<HTMLElement>(".outline-item[data-json-path]")) {
+      const matches = item.dataset.jsonPath === path;
+      item.classList.toggle("is-active", matches);
+      if (matches) activeItem = item;
+    }
+    if (reveal && activeItem) {
+      activeItem.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  };
+
+  const renderJsonOutline = () => {
+    outlineEl.innerHTML = "";
+    const activeJsonPath = jsonWorkspace.getSelectedPath();
+    if (!jsonWorkspace.isValid()) {
+      const empty = document.createElement("li");
+      empty.className = "list-empty";
+      empty.textContent = "JSON inválido. Corrige el texto para ver estructura.";
+      outlineEl.append(empty);
+      sidebarSections?.refreshLayout();
+      return;
+    }
+
+    const entries = jsonWorkspace.getStructureEntries().slice(0, 260);
+    if (entries.length === 0) {
+      const empty = document.createElement("li");
+      empty.className = "list-empty";
+      empty.textContent = jsonTreeVisible
+        ? "Estructura JSON no disponible (árbol deshabilitado o analizando)."
+        : "Árbol JSON oculto. Activa “Árbol” para ver estructura.";
+      outlineEl.append(empty);
+      sidebarSections?.refreshLayout();
+      return;
+    }
+
+    for (const entry of entries) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "outline-item";
+      btn.dataset.jsonPath = entry.path;
+      btn.setAttribute("data-level", String(Math.min(6, entry.depth + 1)));
+      btn.style.setProperty("--outline-level", String(Math.min(6, entry.depth + 1)));
+      btn.title = entry.path;
+      if (entry.path === activeJsonPath) btn.classList.add("is-active");
+
+      const level = document.createElement("span");
+      level.className = "outline-level";
+      level.textContent = entry.kind;
+
+      const text = document.createElement("span");
+      text.className = "outline-text";
+      text.textContent = clamp(entry.label, 80);
+
+      const line = document.createElement("span");
+      line.className = "outline-line";
+      line.textContent = entry.path;
+
+      btn.append(level, text, line);
+      btn.addEventListener("click", () => {
+        jsonWorkspace.selectPath(entry.path, { source: "outline", reveal: true, focusTarget: "none" });
+        scheduleJsonUiSync({ revealOutline: true, updateStatusText: true, delayMs: 0 });
+      });
+      outlineEl.append(btn);
+    }
+
+    sidebarSections?.refreshLayout();
+  };
+
+  onDocumentModeChanged = () => {
+    if (activeDocumentMode === "json") {
+      renderJsonOutline();
+    }
+  };
+
+  jsonWorkspace.onChange(() => {
+    if (activeDocumentMode !== "json") return;
+    renderJsonOutline();
+    syncJsonOutlineSelection(jsonWorkspace.getSelectedPath(), false);
+    scheduleJsonUiSync({ rerenderOutline: true, updateStatusText: false, delayMs: 0 });
+  });
+
+  jsonWorkspace.onSelectionChange((change) => {
+    if (activeDocumentMode !== "json") return;
+    syncJsonOutlineSelection(change.path, change.source !== "editor");
+    if (change.path) {
+      updateStatus(`Nodo: ${change.path}`);
+    }
+  });
+
+  jsonTreeEl.addEventListener(
+    "click",
+    () => {
+      scheduleJsonUiSync({ revealOutline: true, updateStatusText: true, delayMs: 0 });
+    },
+    { capture: true },
+  );
+  jsonTextEditorEl.addEventListener("input", () => {
+    scheduleJsonUiSync({ rerenderOutline: true, updateStatusText: false, delayMs: 240 });
+  });
+  jsonTextEditorEl.addEventListener("click", () => {
+    scheduleJsonUiSync({ updateStatusText: true, delayMs: 180 });
+  });
+  jsonTextEditorEl.addEventListener("keyup", () => {
+    scheduleJsonUiSync({ updateStatusText: true, delayMs: 180 });
+  });
+  jsonTextEditorEl.addEventListener("select", () => {
+    scheduleJsonUiSync({ updateStatusText: true, delayMs: 180 });
+  });
+
   applySpellcheckToEditor(spellcheckEnabled);
   applyOrderedListStartFix();
   const debouncedOrderedListStartFix = debounce(applyOrderedListStartFix, 240);
@@ -3104,55 +3242,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   renderOutline = () => {
     outlineEl.innerHTML = "";
     if (activeDocumentMode === "json") {
-      if (!jsonWorkspace.isValid()) {
-        const empty = document.createElement("li");
-        empty.className = "list-empty";
-        empty.textContent = "JSON inválido. Corrige el texto para ver estructura.";
-        outlineEl.append(empty);
-        sidebarSections?.refreshLayout();
-        return;
-      }
-
-      const entries = jsonWorkspace.getStructureEntries().slice(0, 260);
-      if (entries.length === 0) {
-        const empty = document.createElement("li");
-        empty.className = "list-empty";
-        empty.textContent = jsonTreeVisible
-          ? "Estructura JSON no disponible (árbol deshabilitado o analizando)."
-          : "Árbol JSON oculto. Activa “Árbol” para ver estructura.";
-        outlineEl.append(empty);
-        sidebarSections?.refreshLayout();
-        return;
-      }
-
-      for (const entry of entries) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "outline-item";
-        btn.setAttribute("data-level", String(Math.min(6, entry.depth + 1)));
-        btn.style.setProperty("--outline-level", String(Math.min(6, entry.depth + 1)));
-        btn.title = entry.path;
-
-        const level = document.createElement("span");
-        level.className = "outline-level";
-        level.textContent = entry.kind;
-
-        const text = document.createElement("span");
-        text.className = "outline-text";
-        text.textContent = clamp(entry.label, 80);
-
-        const line = document.createElement("span");
-        line.className = "outline-line";
-        line.textContent = entry.path;
-
-        btn.append(level, text, line);
-        btn.addEventListener("click", () => {
-          jsonWorkspace.focusPath(entry.path);
-          updateStatus(`Nodo: ${entry.path}`);
-        });
-        outlineEl.append(btn);
-      }
-      sidebarSections?.refreshLayout();
+      renderJsonOutline();
       return;
     }
 
@@ -3596,7 +3686,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     isDirty = true;
     updateMeta();
     if (autosaveEnabled) debouncedAutosave();
-    debouncedOutlineRender();
     syncFileButtons();
   });
 
