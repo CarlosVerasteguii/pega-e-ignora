@@ -48,6 +48,7 @@ type VaultPaths = {
 
 type AppTheme = "light" | "dark";
 type DocumentMode = "markdown" | "json";
+type TypographyModeContext = "markdown" | "json";
 type AccentPalette =
   | "caramelo"
   | "oceano"
@@ -141,6 +142,7 @@ const READ_MODE_STORAGE_KEY = "markdown-viewer.readMode";
 const AUTOSAVE_STORAGE_KEY = "markdown-viewer.autosaveScratch";
 const DOCUMENT_MODE_STORAGE_KEY = "markdown-viewer.documentMode";
 const JSON_TREE_VISIBLE_STORAGE_KEY = "markdown-viewer.jsonTreeVisible";
+const JSON_WRAP_LINES_STORAGE_KEY = "markdown-viewer.jsonWrapLines";
 const MIN_WORKSPACE_ZOOM = 0.8;
 const MAX_WORKSPACE_ZOOM = 1.8;
 const WORKSPACE_ZOOM_STEP = 0.05;
@@ -1491,8 +1493,10 @@ window.addEventListener("DOMContentLoaded", async () => {
   const jsonTreePaneEl = document.querySelector<HTMLElement>("#json-tree-pane");
   const jsonLayoutEl = document.querySelector<HTMLElement>("#json-layout");
   const jsonParseStatusEl = document.querySelector<HTMLElement>("#json-parse-status");
+  const jsonEditorWrapEl = document.querySelector<HTMLElement>(".json-editor");
   const btnJsonPretty = document.querySelector<HTMLButtonElement>("#btn-json-pretty");
   const btnJsonMinify = document.querySelector<HTMLButtonElement>("#btn-json-minify");
+  const btnJsonWrapToggle = document.querySelector<HTMLButtonElement>("#btn-json-wrap-toggle");
   const btnJsonTreeToggle = document.querySelector<HTMLButtonElement>("#btn-json-tree-toggle");
   const workspaceEl = document.querySelector<HTMLElement>(".workspace");
   const sidebarEl = document.querySelector<HTMLElement>(".sidebar");
@@ -1506,9 +1510,11 @@ window.addEventListener("DOMContentLoaded", async () => {
   const typographyLineHeight = document.querySelector<HTMLInputElement>("#typography-line-height");
   const typographyLineHeightValue = document.querySelector<HTMLElement>("#typography-line-height-value");
   const typographyParagraphSpacing = document.querySelector<HTMLInputElement>("#typography-paragraph-spacing");
+  const typographySpacingLabel = document.querySelector<HTMLElement>("#typography-spacing-label");
   const typographyParagraphSpacingValue = document.querySelector<HTMLElement>("#typography-paragraph-spacing-value");
   const typographyPresetGroup = document.querySelector<HTMLElement>("#typography-preset-group");
   const typographyPresetSelectedName = document.querySelector<HTMLElement>("#typography-preset-selected-name");
+  const formatContextNote = document.querySelector<HTMLElement>("#format-context-note");
   const visualFamilyGrid = document.querySelector<HTMLElement>("#visual-family-grid");
   const visualFamilySelectedName = document.querySelector<HTMLElement>("#visual-family-selected-name");
 
@@ -1552,8 +1558,10 @@ window.addEventListener("DOMContentLoaded", async () => {
     !jsonTreePaneEl ||
     !jsonLayoutEl ||
     !jsonParseStatusEl ||
+    !jsonEditorWrapEl ||
     !btnJsonPretty ||
     !btnJsonMinify ||
+    !btnJsonWrapToggle ||
     !btnJsonTreeToggle ||
     !workspaceEl ||
     !sidebarEl ||
@@ -1567,9 +1575,11 @@ window.addEventListener("DOMContentLoaded", async () => {
     !typographyLineHeight ||
     !typographyLineHeightValue ||
     !typographyParagraphSpacing ||
+    !typographySpacingLabel ||
     !typographyParagraphSpacingValue ||
     !typographyPresetGroup ||
     !typographyPresetSelectedName ||
+    !formatContextNote ||
     !visualFamilyGrid ||
     !visualFamilySelectedName ||
     !btnNew ||
@@ -1646,6 +1656,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   let activeDocumentMode: DocumentMode = getInitialDocumentMode();
   let onDocumentModeChanged = () => {};
+  let renderOutline = () => {};
 
   let jsonWorkspaceTreeApi: Pick<JsonWorkspace, "setTreeVisible"> | null = null;
 
@@ -1660,7 +1671,19 @@ window.addEventListener("DOMContentLoaded", async () => {
     window.localStorage.setItem(JSON_TREE_VISIBLE_STORAGE_KEY, visible ? "1" : "0");
   };
 
+  const readJsonWrapLines = (): boolean => {
+    const raw = window.localStorage.getItem(JSON_WRAP_LINES_STORAGE_KEY);
+    if (raw === "1") return true;
+    if (raw === "0") return false;
+    return false;
+  };
+
+  const writeJsonWrapLines = (enabled: boolean) => {
+    window.localStorage.setItem(JSON_WRAP_LINES_STORAGE_KEY, enabled ? "1" : "0");
+  };
+
   let jsonTreeVisible = readJsonTreeVisible();
+  let jsonWrapLines = readJsonWrapLines();
 
   sidebarSections = createSidebarSections({
     root: sidebarEl,
@@ -1686,14 +1709,35 @@ window.addEventListener("DOMContentLoaded", async () => {
     btnJsonTreeToggle.setAttribute("aria-label", label);
     jsonWorkspaceTreeApi?.setTreeVisible(visible);
     syncOutlineSectionVisibility();
+    renderOutline();
+  };
+
+  const applyJsonWrapLines = (enabled: boolean) => {
+    jsonWrapLines = enabled;
+    jsonEditorWrapEl.dataset.wrap = enabled ? "on" : "off";
+    jsonTextEditorEl.setAttribute("wrap", enabled ? "soft" : "off");
+    btnJsonWrapToggle.setAttribute("aria-pressed", enabled ? "true" : "false");
+    const label = enabled ? "Desactivar ajuste de línea" : "Activar ajuste de línea";
+    btnJsonWrapToggle.title = label;
+    btnJsonWrapToggle.setAttribute("aria-label", label);
   };
 
   applyJsonTreeVisible(jsonTreeVisible);
+  applyJsonWrapLines(jsonWrapLines);
 
   btnJsonTreeToggle.addEventListener("click", () => {
     const next = !jsonTreeVisible;
     writeJsonTreeVisible(next);
     applyJsonTreeVisible(next);
+  });
+
+  btnJsonWrapToggle.addEventListener("click", () => {
+    const next = !jsonWrapLines;
+    writeJsonWrapLines(next);
+    applyJsonWrapLines(next);
+    const msg = next ? "Ajuste de línea activado" : "Ajuste de línea desactivado";
+    updateStatus(msg);
+    notify({ kind: "info", message: msg });
   });
 
   const readAutosaveEnabled = (): boolean => {
@@ -1878,6 +1922,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         UI_PREF_KEYS.reduceMotion,
         UI_PREF_KEYS.visualFamily,
         JSON_TREE_VISIBLE_STORAGE_KEY,
+        JSON_WRAP_LINES_STORAGE_KEY,
       ]) {
         window.localStorage.removeItem(key);
       }
@@ -2132,6 +2177,49 @@ window.addEventListener("DOMContentLoaded", async () => {
   updateSpellcheckButton(spellcheckEnabled);
 
   let typographySettings: TypographySettings = readTypographySettings();
+  let typographyModeContext: TypographyModeContext = activeDocumentMode === "json" ? "json" : "markdown";
+
+  const getJsonBlockGapPx = (settings: TypographySettings): number =>
+    Math.round(settings.paragraphSpacingEm * settings.fontSizePx * 1.15);
+
+  const getJsonLineHeight = (settings: TypographySettings): number =>
+    clampNumber(Number((settings.lineHeight + settings.paragraphSpacingEm * 0.52).toFixed(2)), 1.2, 2.6);
+
+  const getOutlineFontSizePx = (settings: TypographySettings): number =>
+    clampNumber(settings.fontSizePx - 2, 11, 20);
+
+  const getOutlineLineHeight = (settings: TypographySettings): number =>
+    clampNumber(Number((settings.lineHeight + settings.paragraphSpacingEm * 0.28).toFixed(2)), 1.15, 2.4);
+
+  const getOutlineItemGapPx = (settings: TypographySettings): number =>
+    Math.round(settings.paragraphSpacingEm * settings.fontSizePx * 1.05);
+
+  const formatTypographySpacingValue = (settings: TypographySettings, context: TypographyModeContext): string =>
+    context === "json"
+      ? `${getJsonBlockGapPx(settings)}px`
+      : `${settings.paragraphSpacingEm.toFixed(2)}em`;
+
+  const syncTypographyContext = () => {
+    typographyModeContext = activeDocumentMode === "json" ? "json" : "markdown";
+
+    if (typographyModeContext === "json") {
+      setText(typographySpacingLabel, "Separación entre bloques");
+      setText(
+        formatContextNote,
+        "JSON: controla el editor, el árbol y la estructura lateral. El espaciado ajusta la separación visual entre bloques.",
+      );
+      typographyParagraphSpacing.setAttribute("aria-label", "Separación entre bloques JSON");
+      typographyParagraphSpacing.title = "Ajusta la separación visual entre bloques, nodos y estructura JSON.";
+    } else {
+      setText(typographySpacingLabel, "Espaciado entre párrafos");
+      setText(
+        formatContextNote,
+        "Markdown: controla lectura, escritura y separación entre párrafos.",
+      );
+      typographyParagraphSpacing.setAttribute("aria-label", "Espaciado entre párrafos");
+      typographyParagraphSpacing.title = "Ajusta la separación vertical entre párrafos y bloques de Markdown.";
+    }
+  };
 
   const syncTypographyPresetPicker = () => {
     const activePreset = getTypographyPreset(typographySettings.presetId);
@@ -2148,6 +2236,11 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   const applyTypographySettings = (settings: TypographySettings) => {
     const preset = getTypographyPreset(settings.presetId);
+    const jsonBlockGapPx = getJsonBlockGapPx(settings);
+    const jsonLineHeight = getJsonLineHeight(settings);
+    const outlineFontSizePx = getOutlineFontSizePx(settings);
+    const outlineLineHeight = getOutlineLineHeight(settings);
+    const outlineItemGapPx = getOutlineItemGapPx(settings);
     appEl.style.setProperty("--md-reading-font", preset.readingFont);
     appEl.style.setProperty("--md-writing-font", preset.writingFont);
     appEl.style.setProperty("--md-code-font", preset.codeFont);
@@ -2155,6 +2248,12 @@ window.addEventListener("DOMContentLoaded", async () => {
     appEl.style.setProperty("--md-font-size", `${settings.fontSizePx}px`);
     appEl.style.setProperty("--md-line-height", String(settings.lineHeight));
     appEl.style.setProperty("--md-paragraph-spacing", `${settings.paragraphSpacingEm}em`);
+    appEl.style.setProperty("--json-font-size", `${settings.fontSizePx}px`);
+    appEl.style.setProperty("--json-line-height", String(jsonLineHeight));
+    appEl.style.setProperty("--json-block-gap", `${jsonBlockGapPx}px`);
+    appEl.style.setProperty("--outline-font-size", `${outlineFontSizePx}px`);
+    appEl.style.setProperty("--outline-line-height", String(outlineLineHeight));
+    appEl.style.setProperty("--outline-item-gap", `${outlineItemGapPx}px`);
   };
 
   const updateTypographyControls = (settings: TypographySettings) => {
@@ -2166,7 +2265,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     setText(typographyLineHeightValue, settings.lineHeight.toFixed(2));
 
     typographyParagraphSpacing.value = String(settings.paragraphSpacingEm);
-    setText(typographyParagraphSpacingValue, `${settings.paragraphSpacingEm.toFixed(2)}em`);
+    setText(typographyParagraphSpacingValue, formatTypographySpacingValue(settings, typographyModeContext));
   };
 
   const setTypographyPreset = (presetId: TypographyPresetId, announce = true) => {
@@ -2233,6 +2332,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   );
 
   applyTypographySettings(typographySettings);
+  syncTypographyContext();
   updateTypographyControls(typographySettings);
 
   const onTypographyChanged = () => {
@@ -2339,10 +2439,14 @@ window.addEventListener("DOMContentLoaded", async () => {
     markdownPanelEl.hidden = !markdownActive;
     jsonPanelEl.hidden = markdownActive;
     settleSidebarSectionTransitions();
-    sidebarSections?.setVisible("format", markdownActive);
+    sidebarSections?.setVisible("format", true);
     outlineSectionTitleEl.textContent = markdownActive ? "Jerarquía" : "Estructura JSON";
     outlineSectionToggleEl.title = markdownActive ? "Mostrar/ocultar Jerarquía" : "Mostrar/ocultar Estructura JSON";
+    syncTypographyContext();
+    updateTypographyControls(typographySettings);
+    sidebarSections?.refreshLayout();
     syncOutlineSectionVisibility();
+    renderOutline();
   };
 
   const setActiveDocumentMode = (mode: DocumentMode, announce = false) => {
@@ -2458,7 +2562,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   });
 
   let suppressEditorChange = false;
-  let renderOutline = () => {};
   const getEditorValue = () => editor.getMarkdown();
   const setEditorValue = (markdown: string): { markdown: string; hadUnsafeLinks: boolean } => {
     const sanitized = sanitizeMarkdownLinks(markdown);
@@ -2483,10 +2586,9 @@ window.addEventListener("DOMContentLoaded", async () => {
     workspaceZoom = clampNumber(storedWorkspaceZoom, MIN_WORKSPACE_ZOOM, MAX_WORKSPACE_ZOOM);
   }
   const applyWorkspaceZoom = () => {
-    editorEl.style.setProperty("--workspace-zoom", workspaceZoom.toFixed(2));
-    const jsonFontSize = `${(13 * workspaceZoom).toFixed(2)}px`;
-    jsonTextEditorEl.style.fontSize = jsonFontSize;
-    jsonHighlightEl.style.fontSize = jsonFontSize;
+    const zoomValue = workspaceZoom.toFixed(2);
+    appEl.style.setProperty("--workspace-zoom", zoomValue);
+    editorEl.style.setProperty("--workspace-zoom", zoomValue);
   };
   applyWorkspaceZoom();
   syncModeTabs();

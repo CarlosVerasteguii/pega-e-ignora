@@ -128,16 +128,152 @@ async function main() {
 
     await page.click("#tab-json");
     await page.waitForTimeout(320);
+    await page.evaluate(() => {
+      const textarea = document.querySelector("#json-text-editor");
+      if (!(textarea instanceof HTMLTextAreaElement)) {
+        throw new Error("No pude cargar el editor de texto JSON.");
+      }
+      textarea.value = JSON.stringify(
+        {
+          id: "demo",
+          meta: {
+            title: "Documento",
+            tags: ["a", "b"],
+          },
+          sections: [
+            { kind: "hero", title: "Inicio" },
+            { kind: "body", title: "Detalle" },
+          ],
+        },
+        null,
+        2,
+      );
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await page.waitForTimeout(240);
     await page.screenshot({
-      path: path.join(ARTIFACTS_DIR, "sidebar-json-hidden-success.png"),
+      path: path.join(ARTIFACTS_DIR, "sidebar-json-format-visible-success.png"),
+      fullPage: true,
+    });
+
+    const jsonFormatState = await page.evaluate(() => {
+      const outlineSection = document.querySelector('.sidebar-section[data-section="outline"]');
+      const formatSection = document.querySelector('.sidebar-section[data-section="format"]');
+      const spacingLabel = document.querySelector("#typography-spacing-label");
+      const contextNote = document.querySelector("#format-context-note");
+      if (
+        !(outlineSection instanceof HTMLElement) ||
+        !(formatSection instanceof HTMLElement) ||
+        !(spacingLabel instanceof HTMLElement) ||
+        !(contextNote instanceof HTMLElement)
+      ) {
+        throw new Error("No pude leer el panel Formato en modo JSON.");
+      }
+      return {
+        outlineHidden: outlineSection.hidden,
+        outlineVisibility: outlineSection.dataset.visibility ?? null,
+        format: {
+          hidden: formatSection.hidden,
+          display: window.getComputedStyle(formatSection).display,
+          height: formatSection.getBoundingClientRect().height,
+          visibility: formatSection.dataset.visibility ?? null,
+        },
+        spacingLabel: spacingLabel.textContent?.trim() ?? "",
+        contextNote: contextNote.textContent?.trim() ?? "",
+      };
+    });
+
+    assert.equal(jsonFormatState.outlineHidden, true);
+    assert.equal(jsonFormatState.outlineVisibility, "hidden-by-mode");
+    assert.deepEqual(jsonFormatState.format, {
+      hidden: false,
+      display: "flex",
+      height: jsonFormatState.format.height,
+      visibility: "visible",
+    });
+    assert.ok(
+      jsonFormatState.format.height > 0,
+      `Esperaba que Formato siguiera visible en JSON. Altura actual: ${jsonFormatState.format.height}px`,
+    );
+    assert.equal(jsonFormatState.spacingLabel, "Separación entre bloques");
+    assert.match(jsonFormatState.contextNote, /editor, el árbol y la estructura lateral/i);
+
+    await page.click("#btn-json-tree-toggle");
+    await page.waitForTimeout(240);
+    const jsonTypographyBaseline = await page.evaluate(() => {
+      const jsonEditor = document.querySelector(".json-text-editor");
+      const jsonTree = document.querySelector(".json-tree");
+      if (!(jsonEditor instanceof HTMLElement) || !(jsonTree instanceof HTMLElement)) {
+        throw new Error("No pude leer la tipografía base de JSON.");
+      }
+      return {
+        editorFontSize: window.getComputedStyle(jsonEditor).fontSize,
+        treeFontSize: window.getComputedStyle(jsonTree).fontSize,
+        treeGap: window.getComputedStyle(jsonTree).gap,
+      };
+    });
+    await page.evaluate(() => {
+      const textarea = document.querySelector("#json-text-editor");
+      if (!(textarea instanceof HTMLTextAreaElement)) {
+        throw new Error("No pude actualizar el JSON tras mostrar Árbol.");
+      }
+      textarea.value = JSON.stringify(
+        {
+          id: "demo",
+          meta: {
+            title: "Documento",
+            tags: ["a", "b"],
+            owner: "qa",
+          },
+          sections: [
+            { kind: "hero", title: "Inicio" },
+            { kind: "body", title: "Detalle" },
+          ],
+        },
+        null,
+        2,
+      );
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await page.waitForTimeout(240);
+    await page.locator("#typography-font-size").evaluate((input) => {
+      input.value = "18";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await page.locator("#typography-line-height").evaluate((input) => {
+      input.value = "1.9";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await page.locator("#typography-paragraph-spacing").evaluate((input) => {
+      input.value = "0.4";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await page.evaluate(() => {
+      const toggle = document.querySelector("#sidebar-outline-toggle");
+      if (toggle instanceof HTMLButtonElement && toggle.getAttribute("aria-expanded") === "false") {
+        toggle.click();
+      }
+    });
+    await page.waitForTimeout(240);
+    await page.screenshot({
+      path: path.join(ARTIFACTS_DIR, "sidebar-json-typography-success.png"),
       fullPage: true,
     });
 
     const jsonState = await page.evaluate(() => {
       const outlineSection = document.querySelector('.sidebar-section[data-section="outline"]');
+      const outlineBody = document.querySelector("#sidebar-outline-content");
       const formatSection = document.querySelector('.sidebar-section[data-section="format"]');
-      if (!(outlineSection instanceof HTMLElement) || !(formatSection instanceof HTMLElement)) {
-        throw new Error("No pude leer las secciones del sidebar en modo JSON.");
+      const jsonEditor = document.querySelector(".json-text-editor");
+      const jsonTree = document.querySelector(".json-tree");
+      if (
+        !(outlineSection instanceof HTMLElement) ||
+        !(outlineBody instanceof HTMLElement) ||
+        !(formatSection instanceof HTMLElement) ||
+        !(jsonEditor instanceof HTMLElement) ||
+        !(jsonTree instanceof HTMLElement)
+      ) {
+        throw new Error("No pude leer las superficies tipográficas en modo JSON.");
       }
       const readSection = (section) => ({
         hidden: section.hidden,
@@ -148,21 +284,53 @@ async function main() {
       return {
         outline: readSection(outlineSection),
         format: readSection(formatSection),
+        jsonEditor: {
+          fontSize: window.getComputedStyle(jsonEditor).fontSize,
+          lineHeight: window.getComputedStyle(jsonEditor).lineHeight,
+          paddingTop: window.getComputedStyle(jsonEditor).paddingTop,
+        },
+        jsonTree: {
+          fontSize: window.getComputedStyle(jsonTree).fontSize,
+          gap: window.getComputedStyle(jsonTree).gap,
+        },
+        outlineBody: {
+          hidden: outlineBody.hidden,
+          height: outlineBody.getBoundingClientRect().height,
+        },
       };
     });
 
     assert.deepEqual(jsonState.outline, {
-      hidden: true,
-      display: "none",
-      height: 0,
-      visibility: "hidden-by-mode",
+      hidden: false,
+      display: "flex",
+      height: jsonState.outline.height,
+      visibility: "visible",
     });
+    assert.ok(jsonState.outline.height > 0, "Esperaba la Estructura JSON visible tras activar Árbol.");
+    assert.equal(jsonState.outlineBody.hidden, false);
+    assert.ok(jsonState.outlineBody.height > 0, "Esperaba el body de Estructura JSON visible tras activar Árbol.");
     assert.deepEqual(jsonState.format, {
-      hidden: true,
-      display: "none",
-      height: 0,
-      visibility: "hidden-by-mode",
+      hidden: false,
+      display: "flex",
+      height: jsonState.format.height,
+      visibility: "visible",
     });
+    assert.ok(
+      parseFloat(jsonState.jsonEditor.fontSize) > parseFloat(jsonTypographyBaseline.editorFontSize),
+      `Esperaba aumento de font-size en el editor JSON. Antes: ${jsonTypographyBaseline.editorFontSize}, después: ${jsonState.jsonEditor.fontSize}`,
+    );
+    assert.ok(
+      parseFloat(jsonState.jsonEditor.paddingTop) >= 13,
+      `Esperaba mayor separación visual en el editor JSON. padding-top actual: ${jsonState.jsonEditor.paddingTop}`,
+    );
+    assert.ok(
+      parseFloat(jsonState.jsonTree.fontSize) > parseFloat(jsonTypographyBaseline.treeFontSize),
+      `Esperaba aumento de font-size en el árbol JSON. Antes: ${jsonTypographyBaseline.treeFontSize}, después: ${jsonState.jsonTree.fontSize}`,
+    );
+    assert.ok(
+      parseFloat(jsonState.jsonTree.gap) > parseFloat(jsonTypographyBaseline.treeGap),
+      `Esperaba mayor separación en el árbol JSON. Antes: ${jsonTypographyBaseline.treeGap}, después: ${jsonState.jsonTree.gap}`,
+    );
   } catch (error) {
     if (page) {
       await page.screenshot({ path: path.join(ARTIFACTS_DIR, "sidebar-visual-failure.png"), fullPage: true });

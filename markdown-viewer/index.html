@@ -344,6 +344,10 @@
                     ></div>
                   </div>
 
+                  <p id="format-context-note" class="format-context-note" aria-live="polite">
+                    Markdown: controla lectura, escritura y separación entre párrafos.
+                  </p>
+
                   <label class="format-control">
                     <span class="format-control-label">Tamaño</span>
                     <input
@@ -377,13 +381,16 @@
                   </label>
 
                   <label class="format-control">
-                    <span class="format-control-label">Espaciado</span>
+                    <span id="typography-spacing-label" class="format-control-label"
+                      >Espaciado entre párrafos</span
+                    >
                     <input
                       id="typography-paragraph-spacing"
                       type="range"
                       min="0"
                       max="0.6"
                       step="0.02"
+                      aria-describedby="format-context-note"
                     />
                     <span
                       id="typography-paragraph-spacing-value"
@@ -450,6 +457,32 @@
                 </button>
                 <button id="btn-json-minify" type="button" class="topbar-btn">
                   <span class="btn-label">Minify</span>
+                </button>
+                <button
+                  id="btn-json-wrap-toggle"
+                  type="button"
+                  class="topbar-btn topbar-toggle"
+                  title="Activar ajuste de línea"
+                  aria-label="Activar ajuste de línea"
+                  aria-pressed="false"
+                >
+                  <svg
+                    class="btn-icon"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M4 7h12a4 4 0 0 1 0 8H9" />
+                    <path d="M4 12h10" />
+                    <path d="m9 19-3-4 3-4" />
+                  </svg>
+                  <span class="btn-label">Ajustar línea</span>
                 </button>
                 <button
                   id="btn-json-tree-toggle"

@@ -30,6 +30,38 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "Psudo Liga Mono";
+  src: url("./assets/fonts/PsudoLigaMono-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Psudo Liga Mono";
+  src: url("./assets/fonts/PsudoLigaMono-Italic.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Psudo Liga Mono";
+  src: url("./assets/fonts/PsudoLigaMono-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Psudo Liga Mono";
+  src: url("./assets/fonts/PsudoLigaMono-BoldItalic.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
   --bg: #f2f2f0;
@@ -170,6 +202,13 @@ body {
   --md-font-size: 14px;
   --md-line-height: 1.48;
   --md-paragraph-spacing: 0.22em;
+  --json-font-size: 13px;
+  --json-line-height: 1.45;
+  --json-block-gap: 3px;
+  --outline-font-size: 12px;
+  --outline-line-height: 1.35;
+  --outline-item-gap: 3px;
+  --workspace-zoom: 1;
   grid-template-areas:
     "top top"
     "side main";
@@ -538,7 +577,7 @@ button.icon-only svg {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: calc(6px + var(--outline-item-gap));
   overflow: visible;
 }
 
@@ -626,14 +665,16 @@ button.icon-only svg {
   border: 1px solid var(--border);
   background: var(--history-bg);
   border-radius: 10px;
-  padding: 8px 8px 8px calc(8px + (var(--outline-level, 1) - 1) * 12px);
+  padding: calc(8px + (var(--outline-item-gap) * 0.35)) 8px
+    calc(8px + (var(--outline-item-gap) * 0.35))
+    calc(8px + (var(--outline-level, 1) - 1) * 12px);
   cursor: pointer;
   text-align: left;
   width: 100%;
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 8px;
+  gap: calc(8px + (var(--outline-item-gap) * 0.4));
   transition: border-color 120ms ease, background-color 120ms ease;
 }
 
@@ -662,13 +703,15 @@ button.icon-only svg {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 1px 5px;
-  font-size: 10px;
+  font-size: calc(var(--outline-font-size) * 0.83);
+  line-height: var(--outline-line-height);
   font-weight: 800;
 }
 
 .outline-text {
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--outline-font-size);
+  line-height: var(--outline-line-height);
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -677,7 +720,8 @@ button.icon-only svg {
 
 .outline-line {
   color: var(--muted);
-  font-size: 11px;
+  font-size: calc(var(--outline-font-size) * 0.92);
+  line-height: var(--outline-line-height);
   font-weight: 600;
 }
 
@@ -685,8 +729,9 @@ button.icon-only svg {
   border: 1px dashed var(--border);
   border-radius: 10px;
   color: var(--muted);
-  font-size: 12px;
-  padding: 10px;
+  font-size: var(--outline-font-size);
+  line-height: var(--outline-line-height);
+  padding: calc(10px + (var(--outline-item-gap) * 0.45));
 }
 
 .main {
@@ -858,13 +903,20 @@ button.icon-only svg {
   position: absolute;
   inset: 0;
   margin: 0;
-  padding: 10px;
+  padding: calc(10px + (var(--json-block-gap) * 0.5)) 10px;
   font-family: var(--json-font);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: calc(var(--json-font-size) * var(--workspace-zoom));
+  line-height: var(--json-line-height);
   tab-size: 2;
   white-space: pre;
   overflow: auto;
+}
+
+.json-editor[data-wrap="on"] .json-highlight,
+.json-editor[data-wrap="on"] .json-text-editor {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .json-highlight {
@@ -1009,19 +1061,23 @@ button.icon-only svg {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 8px;
+  padding: calc(8px + (var(--json-block-gap) * 0.45));
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: calc(6px + var(--json-block-gap));
+  font-family: var(--json-font);
+  font-size: calc(var(--json-font-size) * var(--workspace-zoom));
+  line-height: var(--json-line-height);
 }
 
 .json-tree-empty {
   border: 1px dashed var(--border);
   border-radius: 10px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 0.92em;
+  line-height: inherit;
   font-weight: 700;
-  padding: 10px;
+  padding: calc(10px + (var(--json-block-gap) * 0.55));
 }
 
 .json-node {
@@ -1032,11 +1088,11 @@ button.icon-only svg {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--history-bg);
-  min-height: 34px;
-  padding: 6px;
+  min-height: calc(34px + (var(--json-block-gap) * 0.5));
+  padding: calc(6px + (var(--json-block-gap) * 0.35));
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 8px;
+  gap: calc(8px + (var(--json-block-gap) * 0.35));
   align-items: center;
 }
 
@@ -1044,13 +1100,13 @@ button.icon-only svg {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(6px + (var(--json-block-gap) * 0.3));
 }
 
 .json-row-actions {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: calc(4px + (var(--json-block-gap) * 0.2));
 }
 
 .json-indent {
@@ -1074,7 +1130,9 @@ button.icon-only svg {
   border-radius: 8px;
   min-height: 26px;
   padding: 3px 7px;
-  font-size: 12px;
+  font-family: inherit;
+  font-size: 0.92em;
+  line-height: inherit;
   font-weight: 650;
 }
 
@@ -1090,7 +1148,8 @@ button.icon-only svg {
 
 .json-label {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.84em;
+  line-height: inherit;
   font-weight: 700;
 }
 
@@ -1098,16 +1157,17 @@ button.icon-only svg {
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 2px 8px;
-  font-size: 10px;
+  font-size: 0.78em;
+  line-height: inherit;
   font-weight: 850;
   color: var(--muted);
 }
 
 .json-children {
-  margin-top: 6px;
+  margin-top: calc(6px + (var(--json-block-gap) * 0.45));
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: calc(6px + var(--json-block-gap));
 }
 
 .json-row.is-selected {
@@ -1127,7 +1187,6 @@ button.icon-only svg {
   flex: 1 1 auto;
   width: 100%;
   min-width: 0;
-  --workspace-zoom: 1;
 }
 
 .editor-loading {
@@ -1147,6 +1206,13 @@ button.icon-only svg {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.format-context-note {
+  margin: -2px 0 2px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .typography-picker {
