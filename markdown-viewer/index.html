@@ -217,51 +217,92 @@
       </header>
 
       <aside class="sidebar">
-        <section class="sidebar-section sidebar-section-history">
-          <div class="sidebar-header">
-            <button
-              class="sidebar-section-toggle"
-              type="button"
-              data-section="history"
-              aria-controls="sidebar-history-content"
-              aria-expanded="true"
-              title="Mostrar/ocultar Historial"
+        <div class="sidebar-fill-group" data-sidebar-group="fill">
+          <section
+            class="sidebar-section sidebar-section-history"
+            data-section="history"
+            data-sidebar-kind="fill"
+            data-state="expanded"
+            data-visibility="visible"
+          >
+            <h2 class="sidebar-header">
+              <button
+                class="sidebar-section-toggle"
+                id="sidebar-history-toggle"
+                type="button"
+                data-section="history"
+                aria-controls="sidebar-history-content"
+                aria-expanded="true"
+                title="Mostrar/ocultar Historial"
+              >
+                <span class="sidebar-section-title">Historial</span>
+                <span class="sidebar-section-chevron" aria-hidden="true"></span>
+              </button>
+              <button id="btn-refresh-history" type="button" class="ghost">
+                Actualizar
+              </button>
+            </h2>
+            <div
+              id="sidebar-history-content"
+              class="sidebar-body"
+              role="region"
+              aria-labelledby="sidebar-history-toggle"
             >
-              <span class="sidebar-section-title">Historial</span>
-              <span class="sidebar-section-chevron" aria-hidden="true"></span>
-            </button>
-            <button id="btn-refresh-history" type="button" class="ghost">
-              Actualizar
-            </button>
-          </div>
-          <div id="sidebar-history-content" class="sidebar-content">
-            <ul id="history" class="history"></ul>
-          </div>
-        </section>
+              <div class="sidebar-content">
+                <div class="sidebar-content-inner">
+                  <ul id="history" class="history"></ul>
+                </div>
+              </div>
+            </div>
+          </section>
 
-        <section class="sidebar-section sidebar-section-outline">
-          <div class="sidebar-header">
-            <button
-              class="sidebar-section-toggle"
-              type="button"
-              data-section="outline"
-              aria-controls="sidebar-outline-content"
-              aria-expanded="true"
-              title="Mostrar/ocultar Jerarquía"
+          <section
+            class="sidebar-section sidebar-section-outline"
+            data-section="outline"
+            data-sidebar-kind="fill"
+            data-state="expanded"
+            data-visibility="visible"
+          >
+            <h2 class="sidebar-header">
+              <button
+                class="sidebar-section-toggle"
+                id="sidebar-outline-toggle"
+                type="button"
+                data-section="outline"
+                aria-controls="sidebar-outline-content"
+                aria-expanded="true"
+                title="Mostrar/ocultar Jerarquía"
+              >
+                <span class="sidebar-section-title">Jerarquía</span>
+                <span class="sidebar-section-chevron" aria-hidden="true"></span>
+              </button>
+            </h2>
+            <div
+              id="sidebar-outline-content"
+              class="sidebar-body"
+              role="region"
+              aria-labelledby="sidebar-outline-toggle"
             >
-              <span class="sidebar-section-title">Jerarquía</span>
-              <span class="sidebar-section-chevron" aria-hidden="true"></span>
-            </button>
-          </div>
-          <div id="sidebar-outline-content" class="sidebar-content">
-            <ul id="outline" class="outline"></ul>
-          </div>
-        </section>
+              <div class="sidebar-content">
+                <div class="sidebar-content-inner">
+                  <ul id="outline" class="outline"></ul>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
 
-        <section class="sidebar-section sidebar-section-format">
-          <div class="sidebar-header">
+        <section
+          class="sidebar-section sidebar-section-format"
+          data-section="format"
+          data-sidebar-kind="intrinsic"
+          data-state="expanded"
+          data-visibility="visible"
+        >
+          <h2 class="sidebar-header">
             <button
               class="sidebar-section-toggle"
+              id="sidebar-format-toggle"
               type="button"
               data-section="format"
               aria-controls="sidebar-format-content"
@@ -274,76 +315,84 @@
             <button id="btn-reset-typography" type="button" class="ghost">
               Reset
             </button>
-          </div>
-          <div id="sidebar-format-content" class="sidebar-content">
-            <div class="format-controls" role="group" aria-label="Formato">
-              <label class="format-control">
-                <span class="format-control-label">Tamaño</span>
-                <input
-                  id="typography-font-size"
-                  type="range"
-                  min="12"
-                  max="22"
-                  step="1"
-                />
-                <span
-                  id="typography-font-size-value"
-                  class="format-control-value"
-                  >—</span
-                >
-              </label>
+          </h2>
+          <div
+            id="sidebar-format-content"
+            class="sidebar-body"
+            role="region"
+            aria-labelledby="sidebar-format-toggle"
+          >
+            <div class="sidebar-content">
+              <div class="sidebar-content-inner">
+                <div class="format-controls" role="group" aria-label="Formato">
+                  <div class="typography-picker" role="group" aria-label="Tipografia">
+                    <div class="typography-picker-header">
+                      <div class="typography-picker-title">Tipografia</div>
+                      <div
+                        id="typography-preset-selected-name"
+                        class="typography-picker-subtitle"
+                        aria-live="polite"
+                      >
+                        —
+                      </div>
+                    </div>
+                    <div
+                      id="typography-preset-group"
+                      class="typography-choice-group"
+                      role="radiogroup"
+                      aria-label="Elegir tipografia"
+                    ></div>
+                  </div>
 
-              <label class="format-control">
-                <span class="format-control-label">Interlineado</span>
-                <input
-                  id="typography-line-height"
-                  type="range"
-                  min="1.2"
-                  max="2.2"
-                  step="0.05"
-                />
-                <span
-                  id="typography-line-height-value"
-                  class="format-control-value"
-                  >—</span
-                >
-              </label>
+                  <label class="format-control">
+                    <span class="format-control-label">Tamaño</span>
+                    <input
+                      id="typography-font-size"
+                      type="range"
+                      min="12"
+                      max="22"
+                      step="1"
+                    />
+                    <span
+                      id="typography-font-size-value"
+                      class="format-control-value"
+                      >—</span
+                    >
+                  </label>
 
-              <label class="format-control">
-                <span class="format-control-label">Espaciado</span>
-                <input
-                  id="typography-paragraph-spacing"
-                  type="range"
-                  min="0"
-                  max="0.6"
-                  step="0.02"
-                />
-                <span
-                  id="typography-paragraph-spacing-value"
-                  class="format-control-value"
-                  >—</span
-                >
-              </label>
-            </div>
+                  <label class="format-control">
+                    <span class="format-control-label">Interlineado</span>
+                    <input
+                      id="typography-line-height"
+                      type="range"
+                      min="1.2"
+                      max="2.2"
+                      step="0.05"
+                    />
+                    <span
+                      id="typography-line-height-value"
+                      class="format-control-value"
+                      >—</span
+                    >
+                  </label>
 
-            <div class="format-divider" role="separator" aria-hidden="true"></div>
-
-            <div class="palette-picker" role="group" aria-label="Paleta de acentos">
-              <div class="palette-picker-header">
-                <div class="palette-picker-title">Paleta</div>
-                <div
-                  id="accent-palette-selected-name"
-                  class="palette-picker-subtitle"
-                >
-                  —
+                  <label class="format-control">
+                    <span class="format-control-label">Espaciado</span>
+                    <input
+                      id="typography-paragraph-spacing"
+                      type="range"
+                      min="0"
+                      max="0.6"
+                      step="0.02"
+                    />
+                    <span
+                      id="typography-paragraph-spacing-value"
+                      class="format-control-value"
+                      >—</span
+                    >
+                  </label>
                 </div>
               </div>
-              <div
-                id="accent-palette-grid"
-                class="palette-grid"
-                role="radiogroup"
-                aria-label="Elegir paleta"
-              ></div>
             </div>
           </div>
         </section>
@@ -493,28 +542,37 @@
           </button>
         </div>
         <div class="settings-body">
-          <div class="settings-section" role="group" aria-label="Tema de la app">
+          <section class="settings-section settings-section-wide" role="group" aria-label="Familia visual">
             <div class="settings-section-header">
-              <div class="settings-section-title">Tema de la app</div>
-              <div
-                id="app-theme-selected-name"
-                class="settings-section-subtitle"
-              >
-                —
+              <div class="settings-section-title-row">
+                <div class="settings-section-copy">
+                  <div class="settings-section-title">Familia visual</div>
+                  <p class="settings-section-description">Elige la dirección estética general de la app.</p>
+                </div>
+                <div
+                  id="visual-family-selected-name"
+                  class="settings-section-subtitle"
+                  aria-live="polite"
+                >
+                  —
+                </div>
               </div>
             </div>
             <div
-              id="app-theme-grid"
+              id="visual-family-grid"
               class="theme-grid"
               role="radiogroup"
-              aria-label="Elegir tema de la app"
+              aria-label="Elegir familia visual"
             ></div>
-          </div>
+          </section>
 
-          <div class="settings-section" role="group" aria-label="Vault">
+          <section class="settings-section" role="group" aria-label="Vault">
             <div class="settings-section-header">
-              <div class="settings-section-title">Vault</div>
-              <div id="vault-notes-path" class="settings-section-subtitle">—</div>
+              <div class="settings-section-copy">
+                <div class="settings-section-title">Vault</div>
+                <p class="settings-section-description">Acceso rápido y ubicación activa de tus notas.</p>
+              </div>
+              <div id="vault-notes-path" class="settings-section-path" aria-live="polite">—</div>
             </div>
             <div class="settings-actions">
               <button id="btn-explore-vault" type="button" class="settings-action" title="Explorar notas">
@@ -555,12 +613,14 @@
                 <span>Abrir carpeta de notas</span>
               </button>
             </div>
-          </div>
+          </section>
 
-          <div class="settings-section" role="group" aria-label="Comportamiento">
+          <section class="settings-section" role="group" aria-label="Comportamiento">
             <div class="settings-section-header">
-              <div class="settings-section-title">Comportamiento</div>
-              <div class="settings-section-subtitle">Guardado y edición</div>
+              <div class="settings-section-copy">
+                <div class="settings-section-title">Comportamiento</div>
+                <p class="settings-section-description">Persistencia local y control de edición.</p>
+              </div>
             </div>
             <div class="settings-actions">
               <button
@@ -612,18 +672,20 @@
                 <span>Restablecer ajustes…</span>
               </button>
             </div>
-          </div>
+          </section>
 
-          <div class="settings-section" role="group" aria-label="Notificaciones y UX">
+          <section class="settings-section settings-section-wide" role="group" aria-label="Notificaciones y UX">
             <div class="settings-section-header">
-              <div class="settings-section-title">Notificaciones y UX</div>
-              <div class="settings-section-subtitle">Toasts y animaciones</div>
+              <div class="settings-section-copy">
+                <div class="settings-section-title">Notificaciones y UX</div>
+                <p class="settings-section-description">Duración, posición y movimiento de la interfaz.</p>
+              </div>
             </div>
 
             <div class="settings-field">
               <div class="settings-field-row">
                 <div class="settings-field-label">Perfil de toasts</div>
-                <div id="toast-profile-selected-name" class="settings-field-value">—</div>
+                <div id="toast-profile-selected-name" class="settings-field-value" aria-live="polite">—</div>
               </div>
               <div class="settings-choice-group" role="radiogroup" aria-label="Perfil de notificaciones">
                 <button
@@ -650,7 +712,7 @@
             <div class="settings-field">
               <div class="settings-field-row">
                 <div class="settings-field-label">Posición</div>
-                <div id="toast-position-selected-name" class="settings-field-value">—</div>
+                <div id="toast-position-selected-name" class="settings-field-value" aria-live="polite">—</div>
               </div>
               <div class="settings-choice-group" role="radiogroup" aria-label="Posición de notificaciones">
                 <button
@@ -702,12 +764,14 @@
                 <span>Reducir animaciones: No</span>
               </button>
             </div>
-          </div>
+          </section>
 
-          <div class="settings-section" role="group" aria-label="Atajos">
+          <section class="settings-section settings-section-wide" role="group" aria-label="Atajos">
             <div class="settings-section-header">
-              <div class="settings-section-title">Atajos</div>
-              <div class="settings-section-subtitle">Teclado</div>
+              <div class="settings-section-copy">
+                <div class="settings-section-title">Atajos</div>
+                <p class="settings-section-description">Acciones rápidas disponibles en toda la app.</p>
+              </div>
             </div>
             <ul class="settings-list">
               <li><kbd>Ctrl+K</kbd> Comandos</li>
@@ -719,7 +783,7 @@
               <li><kbd>Ctrl+H</kbd> Reemplazar</li>
               <li><kbd>Ctrl+rueda</kbd> Zoom</li>
             </ul>
-          </div>
+          </section>
         </div>
       </div>
     </div>

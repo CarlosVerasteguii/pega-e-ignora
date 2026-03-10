@@ -8,14 +8,29 @@ import { openPath } from "@tauri-apps/plugin-opener";
 import { createJsonWorkspace, type JsonWorkspace } from "./features/jsonWorkspace";
 import { createCommandPalette, type CommandPaletteAction } from "./ui/commandPalette";
 import { createFindReplace } from "./ui/findReplace";
+import { createSidebarSections, type SidebarSectionsApi } from "./ui/sidebarSections";
+import {
+  SIDEBAR_SECTIONS_STORAGE_KEY,
+  getInitialSidebarSectionExpandedState,
+  writeSidebarSectionExpandedState,
+} from "./ui/sidebarSectionState";
 import { createToastHost, type ToastKind, type ToastPosition, type ToastShowOptions } from "./ui/toast";
 import {
   UI_PREF_KEYS,
+  DEFAULT_TYPOGRAPHY_SETTINGS,
+  TYPOGRAPHY_PRESETS,
   type ToastProfile,
+  type TypographyPresetId,
+  type TypographySettings,
+  type VisualFamily,
+  getTypographyPreset,
+  readTypographySettings,
   readUiPreferences,
   writeReduceMotion,
   writeToastPosition,
   writeToastProfile,
+  writeTypographySettings,
+  writeVisualFamily,
 } from "./ui/uiPreferences";
 
 type HistoryItem = {
@@ -101,6 +116,14 @@ type AppThemePaletteDefinition = {
   light: AppThemeSurfaces;
   dark: AppThemeSurfaces;
 };
+
+type VisualFamilyDefinition = {
+  id: VisualFamily;
+  name: string;
+  description: string;
+  appTheme: AppThemePalette;
+  accentPalette: AccentPalette;
+};
 type HeadingEntry = {
   level: number;
   text: string;
@@ -110,34 +133,17 @@ type HeadingEntry = {
 type ToastUiEditor = InstanceType<typeof import("@toast-ui/editor").default>;
 
 const THEME_STORAGE_KEY = "markdown-viewer.theme";
-const APP_THEME_STORAGE_KEY = "markdown-viewer.appTheme";
-const ACCENT_PALETTE_STORAGE_KEY = "markdown-viewer.palette";
+const LEGACY_APP_THEME_STORAGE_KEY = "markdown-viewer.appTheme";
+const LEGACY_ACCENT_PALETTE_STORAGE_KEY = "markdown-viewer.palette";
 const WORKSPACE_ZOOM_STORAGE_KEY = "markdown-viewer.workspaceZoom";
-const TYPOGRAPHY_STORAGE_KEY = "markdown-viewer.typography";
 const SPELLCHECK_STORAGE_KEY = "markdown-viewer.spellcheck";
 const READ_MODE_STORAGE_KEY = "markdown-viewer.readMode";
-const SIDEBAR_SECTIONS_STORAGE_KEY = "markdown-viewer.sidebarSections";
 const AUTOSAVE_STORAGE_KEY = "markdown-viewer.autosaveScratch";
 const DOCUMENT_MODE_STORAGE_KEY = "markdown-viewer.documentMode";
 const JSON_TREE_VISIBLE_STORAGE_KEY = "markdown-viewer.jsonTreeVisible";
 const MIN_WORKSPACE_ZOOM = 0.8;
 const MAX_WORKSPACE_ZOOM = 1.8;
 const WORKSPACE_ZOOM_STEP = 0.05;
-
-type TypographySettings = {
-  fontSizePx: number;
-  lineHeight: number;
-  paragraphSpacingEm: number;
-};
-
-type SidebarSectionId = "history" | "outline" | "format";
-type SidebarSectionsState = Partial<Record<SidebarSectionId, boolean>>;
-
-const DEFAULT_TYPOGRAPHY: TypographySettings = {
-  fontSizePx: 14,
-  lineHeight: 1.5,
-  paragraphSpacingEm: 0.22,
-};
 
 const TOAST_DURATIONS_BY_PROFILE: Record<ToastProfile, Partial<Record<ToastKind, number>>> = {
   "balanced-fast": {
@@ -823,6 +829,31 @@ const APP_THEME_PALETTES: AppThemePaletteDefinition[] = [
 
 const APP_THEME_BY_ID = new Map<AppThemePalette, AppThemePaletteDefinition>(APP_THEME_PALETTES.map((p) => [p.id, p]));
 const DEFAULT_APP_THEME: AppThemePalette = "arena";
+const VISUAL_FAMILIES: VisualFamilyDefinition[] = [
+  {
+    id: "studio-slate",
+    name: "Studio Slate",
+    description: "Sobrio y editorial; baja el look tech y refuerza jerarquía.",
+    appTheme: "grafito",
+    accentPalette: "oceano",
+  },
+  {
+    id: "editorial-warm",
+    name: "Editorial Warm",
+    description: "Más humano y premium; papel cálido con acento discreto.",
+    appTheme: "papel",
+    accentPalette: "caramelo",
+  },
+  {
+    id: "operator-console",
+    name: "Operator Console",
+    description: "Contraste táctico y foco operativo para sesiones largas.",
+    appTheme: "carbon",
+    accentPalette: "menta",
+  },
+];
+const VISUAL_FAMILY_BY_ID = new Map<VisualFamily, VisualFamilyDefinition>(VISUAL_FAMILIES.map((family) => [family.id, family]));
+const DEFAULT_VISUAL_FAMILY: VisualFamily = "studio-slate";
 
 function basename(path: string): string {
   return path.replace(/^.*[\\/]/, "");
@@ -935,42 +966,14 @@ function getStoredTheme(): AppTheme | null {
   return stored === "light" || stored === "dark" ? stored : null;
 }
 
-function isAccentPalette(value: string | null): value is AccentPalette {
-  if (!value) return false;
-  return ACCENT_PALETTE_BY_ID.has(value as AccentPalette);
-}
-
-function getStoredAccentPalette(): AccentPalette | null {
-  const stored = window.localStorage.getItem(ACCENT_PALETTE_STORAGE_KEY);
-  return isAccentPalette(stored) ? stored : null;
-}
-
-function isAppThemePalette(value: string | null): value is AppThemePalette {
-  if (!value) return false;
-  return APP_THEME_BY_ID.has(value as AppThemePalette);
-}
-
-function getStoredAppThemePalette(): AppThemePalette | null {
-  const stored = window.localStorage.getItem(APP_THEME_STORAGE_KEY);
-  return isAppThemePalette(stored) ? stored : null;
-}
-
 function getInitialTheme(): AppTheme {
   const storedTheme = getStoredTheme();
   if (storedTheme) return storedTheme;
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-function getInitialAccentPalette(): AccentPalette {
-  const storedPalette = getStoredAccentPalette();
-  if (storedPalette) return storedPalette;
-  return DEFAULT_ACCENT_PALETTE;
-}
-
-function getInitialAppThemePalette(): AppThemePalette {
-  const stored = getStoredAppThemePalette();
-  if (stored) return stored;
-  return DEFAULT_APP_THEME;
+function isVisualFamilyId(value: string): value is VisualFamily {
+  return VISUAL_FAMILY_BY_ID.has(value as VisualFamily);
 }
 
 function looksLikeMarkdown(text: string): boolean {
@@ -1492,12 +1495,11 @@ window.addEventListener("DOMContentLoaded", async () => {
   const btnJsonMinify = document.querySelector<HTMLButtonElement>("#btn-json-minify");
   const btnJsonTreeToggle = document.querySelector<HTMLButtonElement>("#btn-json-tree-toggle");
   const workspaceEl = document.querySelector<HTMLElement>(".workspace");
+  const sidebarEl = document.querySelector<HTMLElement>(".sidebar");
   const historyEl = document.querySelector<HTMLElement>("#history");
   const outlineEl = document.querySelector<HTMLElement>("#outline");
-  const outlineSectionEl = document.querySelector<HTMLElement>(".sidebar-section-outline");
   const outlineSectionToggleEl = document.querySelector<HTMLButtonElement>(".sidebar-section-outline .sidebar-section-toggle");
   const outlineSectionTitleEl = document.querySelector<HTMLElement>(".sidebar-section-outline .sidebar-section-title");
-  const formatSectionEl = document.querySelector<HTMLElement>(".sidebar-section-format");
   const resetTypographyBtn = document.querySelector<HTMLButtonElement>("#btn-reset-typography");
   const typographyFontSize = document.querySelector<HTMLInputElement>("#typography-font-size");
   const typographyFontSizeValue = document.querySelector<HTMLElement>("#typography-font-size-value");
@@ -1505,10 +1507,10 @@ window.addEventListener("DOMContentLoaded", async () => {
   const typographyLineHeightValue = document.querySelector<HTMLElement>("#typography-line-height-value");
   const typographyParagraphSpacing = document.querySelector<HTMLInputElement>("#typography-paragraph-spacing");
   const typographyParagraphSpacingValue = document.querySelector<HTMLElement>("#typography-paragraph-spacing-value");
-  const accentPaletteGrid = document.querySelector<HTMLElement>("#accent-palette-grid");
-  const accentPaletteSelectedName = document.querySelector<HTMLElement>("#accent-palette-selected-name");
-  const appThemeGrid = document.querySelector<HTMLElement>("#app-theme-grid");
-  const appThemeSelectedName = document.querySelector<HTMLElement>("#app-theme-selected-name");
+  const typographyPresetGroup = document.querySelector<HTMLElement>("#typography-preset-group");
+  const typographyPresetSelectedName = document.querySelector<HTMLElement>("#typography-preset-selected-name");
+  const visualFamilyGrid = document.querySelector<HTMLElement>("#visual-family-grid");
+  const visualFamilySelectedName = document.querySelector<HTMLElement>("#visual-family-selected-name");
 
   const btnNew = document.querySelector<HTMLButtonElement>("#btn-new");
   const btnOpen = document.querySelector<HTMLButtonElement>("#btn-open");
@@ -1554,12 +1556,11 @@ window.addEventListener("DOMContentLoaded", async () => {
     !btnJsonMinify ||
     !btnJsonTreeToggle ||
     !workspaceEl ||
+    !sidebarEl ||
     !historyEl ||
     !outlineEl ||
-    !outlineSectionEl ||
     !outlineSectionToggleEl ||
     !outlineSectionTitleEl ||
-    !formatSectionEl ||
     !resetTypographyBtn ||
     !typographyFontSize ||
     !typographyFontSizeValue ||
@@ -1567,10 +1568,10 @@ window.addEventListener("DOMContentLoaded", async () => {
     !typographyLineHeightValue ||
     !typographyParagraphSpacing ||
     !typographyParagraphSpacingValue ||
-    !accentPaletteGrid ||
-    !accentPaletteSelectedName ||
-    !appThemeGrid ||
-    !appThemeSelectedName ||
+    !typographyPresetGroup ||
+    !typographyPresetSelectedName ||
+    !visualFamilyGrid ||
+    !visualFamilySelectedName ||
     !btnNew ||
     !btnOpen ||
     !btnSave ||
@@ -1605,6 +1606,10 @@ window.addEventListener("DOMContentLoaded", async () => {
   let reduceMotionPreference = initialUiPreferences.reduceMotion;
   const reduceMotionMediaQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)") ?? null;
   const reduceMotionEnabled = () => reduceMotionPreference || (reduceMotionMediaQuery?.matches ?? false);
+  let sidebarSections: SidebarSectionsApi | null = null;
+  const settleSidebarSectionTransitions = () => {
+    sidebarSections?.settleAll();
+  };
 
   const toasts = createToastHost({
     position: toastPosition,
@@ -1615,6 +1620,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     toasts.el.dataset.position = position;
   };
   const applyReducedMotionState = () => {
+    settleSidebarSectionTransitions();
     document.documentElement.setAttribute("data-reduce-motion", reduceMotionEnabled() ? "true" : "false");
   };
   applyToastHostPosition(toastPosition);
@@ -1656,8 +1662,18 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   let jsonTreeVisible = readJsonTreeVisible();
 
+  sidebarSections = createSidebarSections({
+    root: sidebarEl,
+    initialExpanded: getInitialSidebarSectionExpandedState(window.localStorage),
+    reducedMotion: reduceMotionEnabled,
+    onExpandedChange: (id, expanded) => {
+      writeSidebarSectionExpandedState(window.localStorage, id, expanded);
+    },
+  });
+
   const syncOutlineSectionVisibility = () => {
-    outlineSectionEl.hidden = activeDocumentMode === "json" && !jsonTreeVisible;
+    settleSidebarSectionTransitions();
+    sidebarSections?.setVisible("outline", activeDocumentMode === "markdown" || jsonTreeVisible);
   };
 
   const applyJsonTreeVisible = (visible: boolean) => {
@@ -1837,7 +1853,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   btnResetPreferences.addEventListener("click", () => {
     void (async () => {
       const ok = await confirm(
-        "¿Restablecer ajustes?\n\nEsto reinicia tema, paletas, zoom y preferencias. La app se recargará.",
+        "¿Restablecer ajustes?\n\nEsto reinicia tema, familia visual, zoom y preferencias. La app se recargará.",
         {
           kind: "warning",
           title: "Pega e Ignora",
@@ -1849,10 +1865,10 @@ window.addEventListener("DOMContentLoaded", async () => {
 
       for (const key of [
         THEME_STORAGE_KEY,
-        APP_THEME_STORAGE_KEY,
-        ACCENT_PALETTE_STORAGE_KEY,
+        LEGACY_APP_THEME_STORAGE_KEY,
+        LEGACY_ACCENT_PALETTE_STORAGE_KEY,
         WORKSPACE_ZOOM_STORAGE_KEY,
-        TYPOGRAPHY_STORAGE_KEY,
+        UI_PREF_KEYS.typography,
         SPELLCHECK_STORAGE_KEY,
         READ_MODE_STORAGE_KEY,
         SIDEBAR_SECTIONS_STORAGE_KEY,
@@ -1860,6 +1876,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         UI_PREF_KEYS.toastProfile,
         UI_PREF_KEYS.toastPosition,
         UI_PREF_KEYS.reduceMotion,
+        UI_PREF_KEYS.visualFamily,
         JSON_TREE_VISIBLE_STORAGE_KEY,
       ]) {
         window.localStorage.removeItem(key);
@@ -1870,11 +1887,12 @@ window.addEventListener("DOMContentLoaded", async () => {
   });
 
   let currentTheme: AppTheme = getInitialTheme();
-  let currentAccentPalette: AccentPalette = getInitialAccentPalette();
-  let currentAppTheme: AppThemePalette = getInitialAppThemePalette();
+  let currentVisualFamily: VisualFamily = VISUAL_FAMILY_BY_ID.has(initialUiPreferences.visualFamily)
+    ? initialUiPreferences.visualFamily
+    : DEFAULT_VISUAL_FAMILY;
 
-  const accentPaletteButtons = new Map<AccentPalette, HTMLButtonElement>();
-  const appThemeButtons = new Map<AppThemePalette, HTMLButtonElement>();
+  const typographyPresetButtons = new Map<TypographyPresetId, HTMLButtonElement>();
+  const visualFamilyButtons = new Map<VisualFamily, HTMLButtonElement>();
 
   const applyAccentPalette = (palette: AccentPalette, theme: AppTheme) => {
     const def = ACCENT_PALETTE_BY_ID.get(palette) ?? ACCENT_PALETTE_BY_ID.get(DEFAULT_ACCENT_PALETTE);
@@ -1912,142 +1930,109 @@ window.addEventListener("DOMContentLoaded", async () => {
     root.style.setProperty("--code-block-bg", set.codeBlockBg);
   };
 
-  const syncAccentPalettePicker = () => {
-    const active =
-      ACCENT_PALETTE_BY_ID.get(currentAccentPalette) ?? ACCENT_PALETTE_BY_ID.get(DEFAULT_ACCENT_PALETTE);
-    if (active) accentPaletteSelectedName.textContent = active.name;
+  const getVisualFamilyDefinition = (family: VisualFamily) =>
+    VISUAL_FAMILY_BY_ID.get(family) ?? VISUAL_FAMILY_BY_ID.get(DEFAULT_VISUAL_FAMILY);
 
-    for (const def of ACCENT_PALETTES) {
-      const button = accentPaletteButtons.get(def.id);
+  const applyVisualFamily = (family: VisualFamily, theme: AppTheme) => {
+    const definition = getVisualFamilyDefinition(family);
+    if (!definition) return;
+    document.documentElement.setAttribute("data-visual-family", definition.id);
+    applyAppThemePalette(definition.appTheme, theme);
+    applyAccentPalette(definition.accentPalette, theme);
+  };
+
+  const syncVisualFamilyPicker = () => {
+    const active = getVisualFamilyDefinition(currentVisualFamily);
+    if (active) visualFamilySelectedName.textContent = active.name;
+
+    for (const definition of VISUAL_FAMILIES) {
+      const button = visualFamilyButtons.get(definition.id);
       if (!button) continue;
-      const set = currentTheme === "dark" ? def.dark : def.light;
-      button.style.setProperty("--sw-a1", `rgb(${set.a1})`);
-      button.style.setProperty("--sw-a2", `rgb(${set.a2})`);
-      button.style.setProperty("--sw-a3", `rgb(${set.a3})`);
-      button.style.setProperty("--sw-a4", `rgb(${set.a4})`);
+      const appThemeDefinition = APP_THEME_BY_ID.get(definition.appTheme) ?? APP_THEME_BY_ID.get(DEFAULT_APP_THEME);
+      const accentDefinition =
+        ACCENT_PALETTE_BY_ID.get(definition.accentPalette) ?? ACCENT_PALETTE_BY_ID.get(DEFAULT_ACCENT_PALETTE);
+      if (!appThemeDefinition || !accentDefinition) continue;
+      const appThemeSet = currentTheme === "dark" ? appThemeDefinition.dark : appThemeDefinition.light;
+      const accentSet = currentTheme === "dark" ? accentDefinition.dark : accentDefinition.light;
+      button.style.setProperty("--sw-bg", appThemeSet.bg);
+      button.style.setProperty("--sw-panel", appThemeSet.panel);
+      button.style.setProperty("--sw-panel-3", appThemeSet.panel3);
+      button.style.setProperty("--sw-accent", `rgb(${accentSet.a1})`);
+      button.style.setProperty("--sw-border", appThemeSet.border);
 
-      const checked = def.id === currentAccentPalette;
+      const checked = definition.id === currentVisualFamily;
       button.setAttribute("aria-checked", checked ? "true" : "false");
       button.tabIndex = checked ? 0 : -1;
     }
   };
 
-  const syncAppThemePicker = () => {
-    const active = APP_THEME_BY_ID.get(currentAppTheme) ?? APP_THEME_BY_ID.get(DEFAULT_APP_THEME);
-    if (active) appThemeSelectedName.textContent = active.name;
-
-    for (const def of APP_THEME_PALETTES) {
-      const button = appThemeButtons.get(def.id);
-      if (!button) continue;
-      const set = currentTheme === "dark" ? def.dark : def.light;
-      button.style.setProperty("--sw-bg", set.bg);
-      button.style.setProperty("--sw-panel", set.panel);
-      button.style.setProperty("--sw-panel-3", set.panel3);
-
-      const checked = def.id === currentAppTheme;
-      button.setAttribute("aria-checked", checked ? "true" : "false");
-      button.tabIndex = checked ? 0 : -1;
-    }
-  };
-
-  const setAccentPalette = (next: AccentPalette, announce = true) => {
-    if (!ACCENT_PALETTE_BY_ID.has(next)) return;
-    currentAccentPalette = next;
-    window.localStorage.setItem(ACCENT_PALETTE_STORAGE_KEY, next);
-    applyAccentPalette(currentAccentPalette, currentTheme);
-    syncAccentPalettePicker();
+  const setVisualFamily = (next: VisualFamily, announce = true) => {
+    if (!VISUAL_FAMILY_BY_ID.has(next)) return;
+    currentVisualFamily = next;
+    writeVisualFamily(next);
+    window.localStorage.removeItem(LEGACY_APP_THEME_STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_ACCENT_PALETTE_STORAGE_KEY);
+    applyVisualFamily(currentVisualFamily, currentTheme);
+    syncVisualFamilyPicker();
 
     if (announce) {
-      const name = ACCENT_PALETTE_BY_ID.get(next)?.name ?? "Paleta";
-      updateStatus(`Paleta: ${name}`);
-      notify({ kind: "info", message: `Paleta: ${name}` });
+      const name = getVisualFamilyDefinition(next)?.name ?? "Familia visual";
+      updateStatus(`Familia visual: ${name}`);
+      notify({ kind: "info", message: `Familia visual: ${name}` });
     }
   };
 
-  const setAppTheme = (next: AppThemePalette, announce = true) => {
-    if (!APP_THEME_BY_ID.has(next)) return;
-    currentAppTheme = next;
-    window.localStorage.setItem(APP_THEME_STORAGE_KEY, next);
-    applyAppThemePalette(currentAppTheme, currentTheme);
-    syncAppThemePicker();
+  const buildVisualFamilyPicker = () => {
+    visualFamilyGrid.innerHTML = "";
+    visualFamilyButtons.clear();
 
-    if (announce) {
-      const name = APP_THEME_BY_ID.get(next)?.name ?? "Tema";
-      updateStatus(`Tema: ${name}`);
-      notify({ kind: "info", message: `Tema: ${name}` });
-    }
-  };
-
-  const buildAccentPalettePicker = () => {
-    accentPaletteGrid.innerHTML = "";
-    accentPaletteButtons.clear();
-
-    for (const def of ACCENT_PALETTES) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "palette-option";
-      button.setAttribute("role", "radio");
-      button.setAttribute("aria-label", `Paleta ${def.name}`);
-
-      const dots = document.createElement("span");
-      dots.className = "palette-dots";
-      dots.setAttribute("aria-hidden", "true");
-      for (let i = 0; i < 4; i += 1) {
-        const dot = document.createElement("span");
-        dot.className = "palette-dot";
-        dots.append(dot);
-      }
-
-      const label = document.createElement("span");
-      label.className = "palette-name";
-      label.textContent = def.name;
-
-      button.append(dots, label);
-      button.addEventListener("click", () => setAccentPalette(def.id));
-
-      accentPaletteGrid.append(button);
-      accentPaletteButtons.set(def.id, button);
-    }
-
-    syncAccentPalettePicker();
-  };
-
-  const buildAppThemePicker = () => {
-    appThemeGrid.innerHTML = "";
-    appThemeButtons.clear();
-
-    for (const def of APP_THEME_PALETTES) {
+    for (const definition of VISUAL_FAMILIES) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "theme-option";
       button.setAttribute("role", "radio");
-      button.setAttribute("aria-label", `Tema ${def.name}`);
+      button.setAttribute("aria-label", `${definition.name}. ${definition.description}`);
 
       const swatches = document.createElement("span");
       swatches.className = "theme-swatches";
       swatches.setAttribute("aria-hidden", "true");
-      for (let i = 0; i < 3; i += 1) {
+      for (let i = 0; i < 4; i += 1) {
         const sw = document.createElement("span");
         sw.className = "theme-swatch";
         swatches.append(sw);
       }
 
+      const copy = document.createElement("span");
+      copy.className = "theme-copy";
+
       const label = document.createElement("span");
       label.className = "theme-name";
-      label.textContent = def.name;
+      label.textContent = definition.name;
 
-      button.append(swatches, label);
-      button.addEventListener("click", () => setAppTheme(def.id));
+      const description = document.createElement("span");
+      description.className = "theme-description";
+      description.textContent = definition.description;
 
-      appThemeGrid.append(button);
-      appThemeButtons.set(def.id, button);
+      copy.append(label, description);
+      button.append(swatches, copy);
+      button.addEventListener("click", () => setVisualFamily(definition.id));
+
+      visualFamilyGrid.append(button);
+      visualFamilyButtons.set(definition.id, button);
     }
 
-    syncAppThemePicker();
+    syncVisualFamilyPicker();
   };
 
-  buildAccentPalettePicker();
-  buildAppThemePicker();
+  buildVisualFamilyPicker();
+  bindChoiceGroupKeyboard(
+    VISUAL_FAMILIES.map((definition) => {
+      const button = visualFamilyButtons.get(definition.id);
+      if (!button) throw new Error(`Falta botón de familia visual: ${definition.id}`);
+      return { id: definition.id, button };
+    }),
+    (id) => setVisualFamily(id),
+  );
 
   const applyTheme = (theme: AppTheme) => {
     currentTheme = theme;
@@ -2058,10 +2043,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     const nextAction = theme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro";
     btnTheme.title = nextAction;
     btnTheme.setAttribute("aria-label", nextAction);
-    applyAppThemePalette(currentAppTheme, theme);
-    applyAccentPalette(currentAccentPalette, theme);
-    syncAppThemePicker();
-    syncAccentPalettePicker();
+    applyVisualFamily(currentVisualFamily, theme);
+    syncVisualFamilyPicker();
   };
   applyTheme(currentTheme);
 
@@ -2091,110 +2074,6 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   let readModeEnabled = readReadModeEnabled();
   applyReadMode(readModeEnabled);
-
-  const readSidebarSectionsState = (): SidebarSectionsState => {
-    const raw = window.localStorage.getItem(SIDEBAR_SECTIONS_STORAGE_KEY);
-    if (!raw) return {};
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (!parsed || typeof parsed !== "object") return {};
-      const obj = parsed as Record<string, unknown>;
-      const state: SidebarSectionsState = {};
-      for (const key of ["history", "outline", "format"] satisfies SidebarSectionId[]) {
-        if (typeof obj[key] === "boolean") state[key] = obj[key];
-      }
-      return state;
-    } catch {
-      return {};
-    }
-  };
-
-  const writeSidebarSectionsState = (state: SidebarSectionsState) => {
-    window.localStorage.setItem(SIDEBAR_SECTIONS_STORAGE_KEY, JSON.stringify(state));
-  };
-
-  const animateSidebarContent = (content: HTMLElement, expanded: boolean) => {
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
-      content.hidden = !expanded;
-      content.style.removeProperty("will-change");
-      content.style.removeProperty("opacity");
-      return;
-    }
-
-    const current = Number.parseFloat(content.style.opacity || "");
-    if (!Number.isNaN(current)) content.style.opacity = String(current);
-    content.style.willChange = "opacity";
-    if (expanded) {
-      content.hidden = false;
-      content.style.opacity = "0";
-      requestAnimationFrame(() => {
-        content.style.opacity = "1";
-      });
-    } else {
-      content.style.opacity = "1";
-      requestAnimationFrame(() => {
-        content.style.opacity = "0";
-      });
-    }
-    const onDone = () => {
-      content.style.removeProperty("will-change");
-      content.style.removeProperty("opacity");
-      if (!expanded) content.hidden = true;
-    };
-    content.addEventListener("transitionend", onDone, { once: true });
-    window.setTimeout(onDone, 220);
-  };
-
-  const initSidebarSectionToggles = () => {
-    const state = readSidebarSectionsState();
-    const defaultCollapsed: Record<SidebarSectionId, boolean> = {
-      history: false,
-      outline: false,
-      format: true,
-    };
-    const toggles = Array.from(document.querySelectorAll<HTMLButtonElement>(".sidebar-section-toggle"));
-    const resolve = (toggle: HTMLButtonElement) => {
-      const section = (toggle.dataset.section ?? "") as SidebarSectionId;
-      const contentId = toggle.getAttribute("aria-controls") ?? "";
-      const content = contentId ? document.getElementById(contentId) : null;
-      const container = toggle.closest<HTMLElement>(".sidebar-section");
-      if (!content || !container) return null;
-      return { section, content, container };
-    };
-
-    const setExpanded = (
-      toggle: HTMLButtonElement,
-      content: HTMLElement,
-      container: HTMLElement,
-      expanded: boolean,
-      animate: boolean,
-    ) => {
-      toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
-      container.dataset.collapsed = expanded ? "false" : "true";
-      if (!animate) {
-        content.hidden = !expanded;
-        return;
-      }
-      animateSidebarContent(content, expanded);
-    };
-
-    for (const toggle of toggles) {
-      const resolved = resolve(toggle);
-      if (!resolved) continue;
-      const expanded = !(state[resolved.section] ?? defaultCollapsed[resolved.section] ?? false);
-      setExpanded(toggle, resolved.content, resolved.container, expanded, false);
-
-      toggle.addEventListener("click", () => {
-        const currentExpanded = toggle.getAttribute("aria-expanded") === "true";
-        const nextExpanded = !currentExpanded;
-        setExpanded(toggle, resolved.content, resolved.container, nextExpanded, true);
-        state[resolved.section] = !nextExpanded;
-        writeSidebarSectionsState(state);
-      });
-    }
-  };
-
-  initSidebarSectionToggles();
 
   const readSpellcheckEnabled = (): boolean => {
     const raw = window.localStorage.getItem(SPELLCHECK_STORAGE_KEY);
@@ -2252,36 +2131,34 @@ window.addEventListener("DOMContentLoaded", async () => {
   let spellcheckEnabled = readSpellcheckEnabled();
   updateSpellcheckButton(spellcheckEnabled);
 
-  const readTypographySettings = (): TypographySettings => {
-    const raw = window.localStorage.getItem(TYPOGRAPHY_STORAGE_KEY);
-    if (!raw) return DEFAULT_TYPOGRAPHY;
-    try {
-      const parsed = JSON.parse(raw) as Partial<TypographySettings>;
-      return {
-        fontSizePx: clampNumber(Number(parsed.fontSizePx ?? DEFAULT_TYPOGRAPHY.fontSizePx), 12, 22),
-        lineHeight: clampNumber(Number(parsed.lineHeight ?? DEFAULT_TYPOGRAPHY.lineHeight), 1.2, 2.2),
-        paragraphSpacingEm: clampNumber(
-          Number(parsed.paragraphSpacingEm ?? DEFAULT_TYPOGRAPHY.paragraphSpacingEm),
-          0,
-          0.6,
-        ),
-      };
-    } catch {
-      return DEFAULT_TYPOGRAPHY;
+  let typographySettings: TypographySettings = readTypographySettings();
+
+  const syncTypographyPresetPicker = () => {
+    const activePreset = getTypographyPreset(typographySettings.presetId);
+    setText(typographyPresetSelectedName, activePreset.label);
+
+    for (const preset of TYPOGRAPHY_PRESETS) {
+      const button = typographyPresetButtons.get(preset.id);
+      if (!button) continue;
+      const checked = preset.id === typographySettings.presetId;
+      button.setAttribute("aria-checked", checked ? "true" : "false");
+      button.tabIndex = checked ? 0 : -1;
     }
   };
 
-  const writeTypographySettings = (settings: TypographySettings) => {
-    window.localStorage.setItem(TYPOGRAPHY_STORAGE_KEY, JSON.stringify(settings));
-  };
-
   const applyTypographySettings = (settings: TypographySettings) => {
-    editorEl.style.setProperty("--md-font-size", `${settings.fontSizePx}px`);
-    editorEl.style.setProperty("--md-line-height", String(settings.lineHeight));
-    editorEl.style.setProperty("--md-paragraph-spacing", `${settings.paragraphSpacingEm}em`);
+    const preset = getTypographyPreset(settings.presetId);
+    appEl.style.setProperty("--md-reading-font", preset.readingFont);
+    appEl.style.setProperty("--md-writing-font", preset.writingFont);
+    appEl.style.setProperty("--md-code-font", preset.codeFont);
+    appEl.style.setProperty("--json-font", preset.jsonFont);
+    appEl.style.setProperty("--md-font-size", `${settings.fontSizePx}px`);
+    appEl.style.setProperty("--md-line-height", String(settings.lineHeight));
+    appEl.style.setProperty("--md-paragraph-spacing", `${settings.paragraphSpacingEm}em`);
   };
 
   const updateTypographyControls = (settings: TypographySettings) => {
+    syncTypographyPresetPicker();
     typographyFontSize.value = String(settings.fontSizePx);
     setText(typographyFontSizeValue, `${settings.fontSizePx}px`);
 
@@ -2292,12 +2169,75 @@ window.addEventListener("DOMContentLoaded", async () => {
     setText(typographyParagraphSpacingValue, `${settings.paragraphSpacingEm.toFixed(2)}em`);
   };
 
-  let typographySettings = readTypographySettings();
+  const setTypographyPreset = (presetId: TypographyPresetId, announce = true) => {
+    if (typographySettings.presetId === presetId) return;
+    typographySettings = { ...typographySettings, presetId };
+    applyTypographySettings(typographySettings);
+    updateTypographyControls(typographySettings);
+    writeTypographySettings(typographySettings);
+
+    if (announce) {
+      const message = `Tipografia: ${getTypographyPreset(presetId).label}`;
+      updateStatus(message);
+      notify({ kind: "info", message });
+    }
+  };
+
+  const buildTypographyPresetPicker = () => {
+    typographyPresetGroup.innerHTML = "";
+    typographyPresetButtons.clear();
+
+    for (const preset of TYPOGRAPHY_PRESETS) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "typography-option";
+      button.setAttribute("role", "radio");
+      button.setAttribute("aria-label", `${preset.label}. ${preset.description}`);
+
+      const sample = document.createElement("span");
+      sample.className = "typography-option-sample";
+      sample.textContent = "Aa Bb 123";
+      sample.style.fontFamily = preset.readingFont;
+
+      const copy = document.createElement("span");
+      copy.className = "typography-option-copy";
+
+      const name = document.createElement("span");
+      name.className = "typography-option-name";
+      name.textContent = preset.label;
+
+      const description = document.createElement("span");
+      description.className = "typography-option-description";
+      description.textContent = preset.description;
+
+      copy.append(name, description);
+      button.append(sample, copy);
+      button.addEventListener("click", () => setTypographyPreset(preset.id));
+
+      typographyPresetGroup.append(button);
+      typographyPresetButtons.set(preset.id, button);
+    }
+
+    syncTypographyPresetPicker();
+    sidebarSections?.refreshLayout();
+  };
+
+  buildTypographyPresetPicker();
+  bindChoiceGroupKeyboard(
+    TYPOGRAPHY_PRESETS.map((preset) => {
+      const button = typographyPresetButtons.get(preset.id);
+      if (!button) throw new Error(`Falta boton de tipografia: ${preset.id}`);
+      return { id: preset.id, button };
+    }),
+    (id) => setTypographyPreset(id),
+  );
+
   applyTypographySettings(typographySettings);
   updateTypographyControls(typographySettings);
 
   const onTypographyChanged = () => {
     typographySettings = {
+      ...typographySettings,
       fontSizePx: clampNumber(Number(typographyFontSize.value), 12, 22),
       lineHeight: clampNumber(Number(typographyLineHeight.value), 1.2, 2.2),
       paragraphSpacingEm: clampNumber(Number(typographyParagraphSpacing.value), 0, 0.6),
@@ -2312,11 +2252,11 @@ window.addEventListener("DOMContentLoaded", async () => {
   typographyParagraphSpacing.addEventListener("input", onTypographyChanged);
 
   resetTypographyBtn.addEventListener("click", () => {
-    typographySettings = DEFAULT_TYPOGRAPHY;
+    typographySettings = DEFAULT_TYPOGRAPHY_SETTINGS;
     applyTypographySettings(typographySettings);
     updateTypographyControls(typographySettings);
-    window.localStorage.removeItem(TYPOGRAPHY_STORAGE_KEY);
-    setText(statusEl, "Formato restablecido");
+    window.localStorage.removeItem(UI_PREF_KEYS.typography);
+    updateStatus("Formato restablecido");
   });
 
   editorEl.innerHTML = `<div class="editor-loading" role="status" aria-live="polite">Cargando editor…</div>`;
@@ -2398,7 +2338,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     tabJson.tabIndex = markdownActive ? -1 : 0;
     markdownPanelEl.hidden = !markdownActive;
     jsonPanelEl.hidden = markdownActive;
-    formatSectionEl.hidden = !markdownActive;
+    settleSidebarSectionTransitions();
+    sidebarSections?.setVisible("format", markdownActive);
     outlineSectionTitleEl.textContent = markdownActive ? "Jerarquía" : "Estructura JSON";
     outlineSectionToggleEl.title = markdownActive ? "Mostrar/ocultar Jerarquía" : "Mostrar/ocultar Estructura JSON";
     syncOutlineSectionVisibility();
@@ -2543,17 +2484,19 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
   const applyWorkspaceZoom = () => {
     editorEl.style.setProperty("--workspace-zoom", workspaceZoom.toFixed(2));
-    jsonTextEditorEl.style.fontSize = `${(13 * workspaceZoom).toFixed(2)}px`;
+    const jsonFontSize = `${(13 * workspaceZoom).toFixed(2)}px`;
+    jsonTextEditorEl.style.fontSize = jsonFontSize;
+    jsonHighlightEl.style.fontSize = jsonFontSize;
   };
   applyWorkspaceZoom();
   syncModeTabs();
 
-  const paletteSelectionActions: CommandPaletteAction[] = ACCENT_PALETTES.map((p) => ({
-    id: `palette.${p.id}`,
-    title: `Paleta: ${p.name}`,
-    subtitle: "Cambiar acentos",
-    group: "Acentos",
-    keywords: ["paleta", "acentos", "colores", p.id, p.name],
+  const visualFamilyActions: CommandPaletteAction[] = VISUAL_FAMILIES.map((family) => ({
+    id: `family.${family.id}`,
+    title: `Familia visual: ${family.name}`,
+    subtitle: family.description,
+    group: "Vista",
+    keywords: ["familia", "estilo", "tema", family.id, family.name.toLowerCase()],
   }));
 
   const basePaletteActions: CommandPaletteAction[] = [
@@ -2580,7 +2523,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       group: "Herramientas",
       keywords: ["replace", "reemplazar"],
     },
-    ...paletteSelectionActions,
+    ...visualFamilyActions,
   ];
 
   let palette = createCommandPalette({
@@ -2588,9 +2531,9 @@ window.addEventListener("DOMContentLoaded", async () => {
     title: "Comandos",
     placeholder: "Escribe para buscar…",
     onRun: (actionId) => {
-      if (actionId.startsWith("palette.")) {
-        const next = actionId.slice("palette.".length);
-        if (isAccentPalette(next)) setAccentPalette(next);
+      if (actionId.startsWith("family.")) {
+        const next = actionId.slice("family.".length);
+        if (isVisualFamilyId(next)) setVisualFamily(next);
         return;
       }
 
@@ -2911,6 +2854,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       empty.className = "list-empty";
       empty.textContent = "Aún no hay historial. Guarda algo y aparecerá aquí.";
       historyEl.append(empty);
+      sidebarSections?.refreshLayout();
       return;
     }
 
@@ -3025,6 +2969,8 @@ window.addEventListener("DOMContentLoaded", async () => {
       row.append(btn, deleteBtn);
       historyEl.append(row);
     }
+
+    sidebarSections?.refreshLayout();
   };
 
   const jumpToHeading = (entry: HeadingEntry) => {
@@ -3061,6 +3007,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         empty.className = "list-empty";
         empty.textContent = "JSON inválido. Corrige el texto para ver estructura.";
         outlineEl.append(empty);
+        sidebarSections?.refreshLayout();
         return;
       }
 
@@ -3072,6 +3019,7 @@ window.addEventListener("DOMContentLoaded", async () => {
           ? "Estructura JSON no disponible (árbol deshabilitado o analizando)."
           : "Árbol JSON oculto. Activa “Árbol” para ver estructura.";
         outlineEl.append(empty);
+        sidebarSections?.refreshLayout();
         return;
       }
 
@@ -3102,6 +3050,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         });
         outlineEl.append(btn);
       }
+      sidebarSections?.refreshLayout();
       return;
     }
 
@@ -3111,6 +3060,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       empty.className = "list-empty";
       empty.textContent = "Sin encabezados. Usa #, ##, ### para crear jerarquía.";
       outlineEl.append(empty);
+      sidebarSections?.refreshLayout();
       return;
     }
 
@@ -3138,6 +3088,8 @@ window.addEventListener("DOMContentLoaded", async () => {
       btn.addEventListener("click", () => jumpToHeading(entry));
       outlineEl.append(btn);
     }
+
+    sidebarSections?.refreshLayout();
   };
   const debouncedOutlineRender = debounce(renderOutline, 120);
 
@@ -3328,7 +3280,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       group: "Herramientas",
       keywords: ["replace", "reemplazar"],
     },
-    ...paletteSelectionActions,
+    ...visualFamilyActions,
   ];
 
   palette.destroy();
@@ -3338,9 +3290,9 @@ window.addEventListener("DOMContentLoaded", async () => {
     placeholder: "Escribe para buscar…",
     onRun: (actionId) => {
       void (async () => {
-        if (actionId.startsWith("palette.")) {
-          const next = actionId.slice("palette.".length);
-          if (isAccentPalette(next)) setAccentPalette(next);
+        if (actionId.startsWith("family.")) {
+          const next = actionId.slice("family.".length);
+          if (isVisualFamilyId(next)) setVisualFamily(next);
           return;
         }
 
