@@ -1092,14 +1092,16 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
   const buildPrimitiveEditor = (
     value: JsonValue,
     path: JsonPath,
+    pathText: string,
     editable: boolean,
-    rowMain: HTMLElement,
+    editorSlot: HTMLElement,
   ) => {
     const kind = getJsonKind(value);
 
     const typeSelect = document.createElement("select");
     typeSelect.className = "json-type-select";
     typeSelect.disabled = !editable;
+    typeSelect.setAttribute("aria-label", `Tipo de ${pathText}`);
     for (const optionKind of ["string", "number", "boolean", "null", "object", "array"] as const) {
       const option = document.createElement("option");
       option.value = optionKind;
@@ -1133,8 +1135,6 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
       setPathValue(path, []);
     });
 
-    rowMain.append(typeSelect);
-
     if (kind === "boolean") {
       const boolSelect = document.createElement("select");
       boolSelect.className = "json-bool-select";
@@ -1149,15 +1149,17 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
       boolSelect.addEventListener("change", () => {
         setPathValue(path, boolSelect.value === "true");
       });
-      rowMain.append(boolSelect);
+      boolSelect.setAttribute("aria-label", `Valor booleano de ${pathText}`);
+      editorSlot.append(typeSelect, boolSelect);
       return;
     }
 
     if (kind === "null") {
       const nullLabel = document.createElement("span");
-      nullLabel.className = "json-label";
+      nullLabel.className = "json-value-preview";
       nullLabel.textContent = "null";
-      rowMain.append(nullLabel);
+      nullLabel.setAttribute("aria-label", `Valor nulo de ${pathText}`);
+      editorSlot.append(typeSelect, nullLabel);
       return;
     }
 
@@ -1173,6 +1175,7 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
       input.value = "";
     }
     input.spellcheck = false;
+    input.setAttribute("aria-label", `Valor de ${pathText}`);
 
     const commitInput = () => {
       if (kind === "string") {
@@ -1196,21 +1199,30 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
     });
     input.addEventListener("blur", commitInput);
 
-    rowMain.append(input);
+    editorSlot.append(typeSelect, input);
   };
 
   const createActionButton = (label: string, title: string, onClick: () => void): HTMLButtonElement => {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "ghost";
+    button.className = "ghost json-action-button";
     button.textContent = label;
     button.title = title;
+    button.setAttribute("aria-label", title);
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       onClick();
     });
     return button;
+  };
+
+  const isPathAncestorOfSelected = (path: JsonPath): boolean => {
+    if (!selectedPath) return false;
+    const selectedSegments = pathTextToSegments(selectedPath);
+    if (!selectedSegments) return false;
+    if (path.length >= selectedSegments.length) return false;
+    return path.every((segment, index) => selectedSegments[index] === segment);
   };
 
   const renderNode = (
@@ -1224,29 +1236,51 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
     editable: boolean,
   ): HTMLElement => {
     const kind = getJsonKind(value);
+    const isContainer = kind === "object" || kind === "array";
     const nodeEl = document.createElement("div");
     nodeEl.className = "json-node";
 
     const row = document.createElement("div");
-    row.className = "json-row json-indent";
-    row.style.setProperty("--json-depth", String(depth));
     const pathText = pathToText(path);
+    const isSelected = selectedPath === pathText;
+    const isActiveAncestor = isPathAncestorOfSelected(path);
+
+    row.className = `json-row json-indent ${isContainer ? "json-row--container" : "json-row--leaf"}`;
+    row.style.setProperty("--json-depth", String(depth));
     row.dataset.jsonPath = pathText;
-    if (selectedPath === pathText) row.classList.add("is-selected");
+    if (isSelected) row.classList.add("is-selected");
+    if (isActiveAncestor) row.classList.add("json-row--active-ancestor");
+    if (isContainer) row.dataset.containerKind = kind;
     row.addEventListener("click", () => {
       selectPath(pathText, { source: "tree", reveal: true, focusTarget: "none" });
     });
+    nodeEl.classList.toggle("json-node--selected", isSelected);
+    nodeEl.classList.toggle("json-node--active-ancestor", isActiveAncestor);
+    nodeEl.classList.toggle("json-node--container", isContainer);
+    nodeEl.classList.toggle("json-node--leaf", !isContainer);
 
     const rowMain = document.createElement("div");
     rowMain.className = "json-row-main";
+    rowMain.classList.add(isContainer ? "json-row-main--container" : "json-row-main--leaf");
 
-    if (kind === "object" || kind === "array") {
+    const rowLead = document.createElement("div");
+    rowLead.className = "json-row-lead";
+
+    const heading = document.createElement("div");
+    heading.className = "json-row-heading";
+
+    const summary = document.createElement("div");
+    summary.className = "json-row-summary";
+
+    if (isContainer) {
       const isExpanded = expandedPaths.has(pathText);
       const toggle = document.createElement("button");
       toggle.type = "button";
       toggle.className = "json-toggle";
       toggle.textContent = isExpanded ? "−" : "+";
       toggle.title = isExpanded ? "Colapsar" : "Expandir";
+      toggle.setAttribute("aria-label", `${isExpanded ? "Colapsar" : "Expandir"} ${pathText}`);
+      toggle.setAttribute("aria-expanded", isExpanded ? "true" : "false");
       toggle.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -1257,21 +1291,23 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
         }
         renderTree();
       });
-      rowMain.append(toggle);
+      rowLead.append(toggle);
     } else {
       const spacer = document.createElement("span");
-      spacer.className = "json-label";
+      spacer.className = "json-bullet";
       spacer.textContent = "•";
-      rowMain.append(spacer);
+      rowLead.append(spacer);
     }
 
+    let keyElement: HTMLElement;
     if (parentKind === "object" && typeof key === "string") {
       if (editable) {
         const keyInput = document.createElement("input");
-        keyInput.className = "json-key-input";
+        keyInput.className = "json-key-input json-key-field";
         keyInput.type = "text";
         keyInput.value = key;
         keyInput.spellcheck = false;
+        keyInput.setAttribute("aria-label", `Clave ${key}`);
         const commitRename = () => {
           if (keyInput.value === key) return;
           const changed = renameKey(parentPath, key, keyInput.value);
@@ -1283,24 +1319,25 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
           commitRename();
         });
         keyInput.addEventListener("blur", commitRename);
-        rowMain.append(keyInput);
+        keyElement = keyInput;
       } else {
         const keyLabel = document.createElement("span");
-        keyLabel.className = "json-label";
+        keyLabel.className = "json-key-label json-key-field";
         keyLabel.textContent = key;
-        rowMain.append(keyLabel);
+        keyElement = keyLabel;
       }
     } else if (parentKind === "array" && typeof key === "number") {
       const indexLabel = document.createElement("span");
-      indexLabel.className = "json-label";
+      indexLabel.className = "json-key-label json-key-field json-key-label--index";
       indexLabel.textContent = `[${key}]`;
-      rowMain.append(indexLabel);
+      keyElement = indexLabel;
     } else {
       const rootLabel = document.createElement("span");
-      rootLabel.className = "json-label";
+      rootLabel.className = "json-key-label json-key-field json-key-label--root";
       rootLabel.textContent = ROOT_PATH;
-      rowMain.append(rootLabel);
+      keyElement = rootLabel;
     }
+    heading.append(keyElement);
 
     const badge = document.createElement("span");
     badge.className = "json-badge";
@@ -1311,16 +1348,35 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
     } else {
       badge.textContent = kind;
     }
-    rowMain.append(badge);
+    if (isContainer) {
+      summary.append(badge);
+      if (path.length > 0) {
+        const pathLabel = document.createElement("span");
+        pathLabel.className = "json-row-path";
+        pathLabel.textContent = pathText;
+        summary.append(pathLabel);
+      }
+    } else {
+      const leafMeta = document.createElement("span");
+      leafMeta.className = "json-leaf-meta";
+      leafMeta.textContent = kind;
+      summary.append(leafMeta);
+    }
+    heading.append(summary);
+    rowLead.append(heading);
+    rowMain.append(rowLead);
 
-    if (kind !== "object" && kind !== "array") {
-      buildPrimitiveEditor(value, path, editable, rowMain);
+    if (!isContainer) {
+      const editorSlot = document.createElement("div");
+      editorSlot.className = "json-row-editor";
+      buildPrimitiveEditor(value, path, pathText, editable, editorSlot);
+      rowMain.append(editorSlot);
     }
 
     const actions = document.createElement("div");
-    actions.className = "json-row-actions";
+    actions.className = "json-row-actions json-row-actions--secondary";
 
-    if (editable && (kind === "object" || kind === "array")) {
+    if (editable && isContainer) {
       actions.append(
         createActionButton(
           kind === "object" ? "+prop" : "+item",
@@ -1344,7 +1400,7 @@ export function createJsonWorkspace(options: CreateJsonWorkspaceOptions): JsonWo
     row.append(rowMain, actions);
     nodeEl.append(row);
 
-    if ((kind === "object" || kind === "array") && expandedPaths.has(pathText)) {
+    if (isContainer && expandedPaths.has(pathText)) {
       const childrenWrap = document.createElement("div");
       childrenWrap.className = "json-children";
 

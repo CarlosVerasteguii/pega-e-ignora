@@ -176,4 +176,27 @@ describe("jsonWorkspace selection sync", () => {
     const row = findJsonPathNode(tree, ".json-row", "$.meta.title");
     expect(row?.classList.contains("is-selected")).toBe(true);
   });
+
+  it("renders container and leaf rows with hierarchy classes and marks active ancestors", () => {
+    vi.useFakeTimers();
+    const { workspace, tree } = createFixture();
+    workspace.setText(SAMPLE_JSON, false);
+    vi.advanceTimersByTime(300);
+
+    workspace.selectPath("$.meta.title", { source: "program", reveal: true, focusTarget: "none" });
+
+    const rootRow = findJsonPathNode(tree, ".json-row", "$");
+    const metaRow = findJsonPathNode(tree, ".json-row", "$.meta");
+    const titleRow = findJsonPathNode(tree, ".json-row", "$.meta.title");
+
+    expect(rootRow?.classList.contains("json-row--container")).toBe(true);
+    expect(rootRow?.classList.contains("json-row--active-ancestor")).toBe(true);
+    expect(metaRow?.classList.contains("json-row--container")).toBe(true);
+    expect(metaRow?.classList.contains("json-row--active-ancestor")).toBe(true);
+    expect(titleRow?.classList.contains("json-row--leaf")).toBe(true);
+    expect(titleRow?.classList.contains("is-selected")).toBe(true);
+    expect(metaRow?.querySelector(".json-row-path")?.textContent).toBe("$.meta");
+    expect(titleRow?.querySelector(".json-row-editor .json-value-input")).toBeTruthy();
+    expect(metaRow?.querySelector(".json-row-actions--secondary .json-action-button")).toBeTruthy();
+  });
 });

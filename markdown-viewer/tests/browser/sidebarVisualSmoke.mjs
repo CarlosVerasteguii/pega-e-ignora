@@ -203,15 +203,73 @@ async function main() {
     const jsonTypographyBaseline = await page.evaluate(() => {
       const jsonEditor = document.querySelector(".json-text-editor");
       const jsonTree = document.querySelector(".json-tree");
-      if (!(jsonEditor instanceof HTMLElement) || !(jsonTree instanceof HTMLElement)) {
+      const jsonSplitter = document.querySelector("#json-splitter");
+      const treePane = document.querySelector("#json-tree-pane");
+      if (
+        !(jsonEditor instanceof HTMLElement) ||
+        !(jsonTree instanceof HTMLElement) ||
+        !(jsonSplitter instanceof HTMLElement) ||
+        !(treePane instanceof HTMLElement)
+      ) {
         throw new Error("No pude leer la tipografía base de JSON.");
       }
       return {
         editorFontSize: window.getComputedStyle(jsonEditor).fontSize,
         treeFontSize: window.getComputedStyle(jsonTree).fontSize,
         treeGap: window.getComputedStyle(jsonTree).gap,
+        splitterHidden: jsonSplitter.hidden,
+        splitterRole: jsonSplitter.getAttribute("role"),
+        splitterValue: jsonSplitter.getAttribute("aria-valuenow"),
+        treeWidth: treePane.getBoundingClientRect().width,
       };
     });
+    assert.equal(jsonTypographyBaseline.splitterHidden, false);
+    assert.equal(jsonTypographyBaseline.splitterRole, "separator");
+    assert.ok(
+      Number(jsonTypographyBaseline.splitterValue) >= 25 && Number(jsonTypographyBaseline.splitterValue) <= 60,
+      `Esperaba un valor inicial válido para el splitter JSON. Actual: ${jsonTypographyBaseline.splitterValue}`,
+    );
+
+    await page.focus("#json-splitter");
+    await page.keyboard.press("Home");
+    await page.waitForTimeout(120);
+
+    const splitterAfterHome = await page.evaluate(() => {
+      const treePane = document.querySelector("#json-tree-pane");
+      const jsonSplitter = document.querySelector("#json-splitter");
+      if (!(treePane instanceof HTMLElement) || !(jsonSplitter instanceof HTMLElement)) {
+        throw new Error("No pude validar el resize del splitter JSON.");
+      }
+      return {
+        splitterValue: jsonSplitter.getAttribute("aria-valuenow"),
+        treeWidth: treePane.getBoundingClientRect().width,
+      };
+    });
+    assert.equal(splitterAfterHome.splitterValue, "25");
+
+    await page.keyboard.press("End");
+    await page.waitForTimeout(120);
+
+    const splitterAfterKeyboard = await page.evaluate(() => {
+      const treePane = document.querySelector("#json-tree-pane");
+      const jsonSplitter = document.querySelector("#json-splitter");
+      if (!(treePane instanceof HTMLElement) || !(jsonSplitter instanceof HTMLElement)) {
+        throw new Error("No pude validar el resize del splitter JSON.");
+      }
+      return {
+        splitterValue: jsonSplitter.getAttribute("aria-valuenow"),
+        treeWidth: treePane.getBoundingClientRect().width,
+      };
+    });
+    assert.ok(
+      Number(splitterAfterKeyboard.splitterValue) > Number(splitterAfterHome.splitterValue),
+      `Esperaba que End ampliara el árbol JSON. Antes: ${splitterAfterHome.splitterValue}, después: ${splitterAfterKeyboard.splitterValue}`,
+    );
+    assert.ok(
+      splitterAfterKeyboard.treeWidth > splitterAfterHome.treeWidth,
+      `Esperaba más ancho en el panel Árbol JSON. Antes: ${splitterAfterHome.treeWidth}, después: ${splitterAfterKeyboard.treeWidth}`,
+    );
+
     await page.evaluate(() => {
       const textarea = document.querySelector("#json-text-editor");
       if (!(textarea instanceof HTMLTextAreaElement)) {
@@ -347,18 +405,25 @@ async function main() {
       const activeTree = Array.from(document.querySelectorAll(".json-row.is-selected")).find(
         (node) => node instanceof HTMLElement && node.dataset.jsonPath === "$.meta",
       );
+      const rootTree = Array.from(document.querySelectorAll(".json-row")).find(
+        (node) => node instanceof HTMLElement && node.dataset.jsonPath === "$",
+      );
       const status = document.querySelector("#status");
-      if (!(activeTree instanceof HTMLElement) || !(status instanceof HTMLElement)) {
+      if (!(activeTree instanceof HTMLElement) || !(rootTree instanceof HTMLElement) || !(status instanceof HTMLElement)) {
         throw new Error("No pude validar la sincronización tree -> status.");
       }
       return {
         status: status.textContent?.trim() ?? "",
         treePath: activeTree.dataset.jsonPath ?? null,
+        isContainer: activeTree.classList.contains("json-row--container"),
+        rootAncestor: rootTree.classList.contains("json-row--active-ancestor"),
       };
     });
 
     assert.equal(treeToOutlineSync.treePath, "$.meta");
     assert.equal(treeToOutlineSync.status, "Nodo: $.meta");
+    assert.equal(treeToOutlineSync.isContainer, true);
+    assert.equal(treeToOutlineSync.rootAncestor, true);
 
     await page.evaluate(() => {
       const textarea = document.querySelector("#json-text-editor");
@@ -384,11 +449,15 @@ async function main() {
       return {
         treePath: activeTree.dataset.jsonPath ?? null,
         status: status.textContent?.trim() ?? "",
+        isLeaf: activeTree.classList.contains("json-row--leaf"),
+        hasValueInput: Boolean(activeTree.querySelector(".json-row-editor .json-value-input")),
       };
     });
 
     assert.equal(editorToAllSync.treePath, "$.meta.owner");
     assert.equal(editorToAllSync.status, "Nodo: $.meta.owner");
+    assert.equal(editorToAllSync.isLeaf, true);
+    assert.equal(editorToAllSync.hasValueInput, true);
 
     await page.evaluate(() => {
       const textarea = document.querySelector("#json-text-editor");

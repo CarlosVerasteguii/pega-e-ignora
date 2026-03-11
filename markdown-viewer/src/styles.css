@@ -862,8 +862,10 @@ button.icon-only svg {
 }
 
 .json-layout {
+  --json-tree-pane-width: 38%;
+  --json-splitter-size: 12px;
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr);
+  grid-template-columns: minmax(320px, 1fr) var(--json-splitter-size) minmax(280px, var(--json-tree-pane-width));
   gap: 10px;
   min-height: 0;
   flex: 1;
@@ -871,6 +873,10 @@ button.icon-only svg {
 
 .json-layout[data-tree="hidden"] {
   grid-template-columns: 1fr;
+}
+
+.json-layout[data-tree="shown"] .json-splitter {
+  display: block;
 }
 
 .json-pane {
@@ -885,6 +891,55 @@ button.icon-only svg {
 
 .json-pane[hidden] {
   display: none !important;
+}
+
+.json-splitter {
+  position: relative;
+  align-self: stretch;
+  min-height: 0;
+  cursor: col-resize;
+  border-radius: 999px;
+  background: transparent;
+  outline: none;
+  touch-action: none;
+}
+
+.json-splitter::before {
+  content: "";
+  position: absolute;
+  inset: 6px 4px;
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--border) 75%, transparent),
+      color-mix(in srgb, var(--surface-tint-soft) 42%, transparent)
+    );
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.json-splitter:hover::before {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--focus-ring) 58%, transparent),
+      color-mix(in srgb, var(--surface-tint-soft) 48%, transparent)
+    );
+}
+
+.json-splitter:focus-visible::before,
+.json-splitter[data-dragging="true"]::before {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 24%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--focus-ring) 80%, transparent),
+      color-mix(in srgb, var(--surface-tint-soft) 55%, transparent)
+    );
+  transform: scaleX(1.08);
 }
 
 .json-pane-title {
@@ -1087,43 +1142,161 @@ button.icon-only svg {
 }
 
 .json-node {
+  position: relative;
   min-width: 0;
 }
 
 .json-row {
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--history-bg);
-  min-height: calc(34px + (var(--json-block-gap) * 0.5));
-  padding: calc(6px + (var(--json-block-gap) * 0.35));
+  border-radius: 14px;
+  min-height: calc(36px + (var(--json-block-gap) * 0.65));
+  padding: calc(8px + (var(--json-block-gap) * 0.4));
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: calc(8px + (var(--json-block-gap) * 0.35));
-  align-items: center;
+  gap: calc(10px + (var(--json-block-gap) * 0.4));
+  align-items: start;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.json-row--container {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-tint-soft) 62%, transparent), transparent 80%),
+    var(--history-bg);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface) 55%, transparent);
+}
+
+.json-row--leaf {
+  background: color-mix(in srgb, var(--surface) 86%, var(--history-bg) 14%);
+  border-color: color-mix(in srgb, var(--border) 90%, transparent);
+  min-height: calc(32px + (var(--json-block-gap) * 0.45));
 }
 
 .json-row-main {
   min-width: 0;
   display: flex;
+  gap: calc(10px + (var(--json-block-gap) * 0.3));
+}
+
+.json-row-main--container {
   align-items: center;
-  gap: calc(6px + (var(--json-block-gap) * 0.3));
+}
+
+.json-row-main--leaf {
+  align-items: center;
+  gap: calc(12px + (var(--json-block-gap) * 0.35));
+  flex-wrap: wrap;
+}
+
+.json-row-lead {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: calc(10px + (var(--json-block-gap) * 0.25));
+}
+
+.json-row-heading {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.json-row-summary {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.json-row-path {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.72em;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.json-row-editor {
+  flex: 1 1 380px;
+  min-width: min(360px, 100%);
+  display: flex;
+  align-items: center;
+  gap: calc(6px + (var(--json-block-gap) * 0.25));
+}
+
+.json-leaf-meta {
+  color: var(--muted);
+  font-size: 0.73em;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .json-row-actions {
   display: inline-flex;
   align-items: center;
   gap: calc(4px + (var(--json-block-gap) * 0.2));
+  justify-self: end;
+  align-self: center;
+}
+
+.json-row-actions--secondary {
+  opacity: 0.74;
 }
 
 .json-indent {
-  padding-left: calc(var(--json-depth, 0) * 14px);
+  padding-left: calc(var(--json-depth, 0) * 24px);
+}
+
+.json-bullet {
+  width: 18px;
+  color: color-mix(in srgb, var(--muted) 78%, var(--text) 22%);
+  font-size: 0.92em;
+  line-height: 1;
+  text-align: center;
+  flex: 0 0 auto;
 }
 
 .json-toggle {
-  width: 22px;
-  height: 22px;
-  border-radius: 7px;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
   padding: 0;
+  flex: 0 0 auto;
+}
+
+.json-key-field {
+  color: var(--text);
+  font-weight: 840;
+  letter-spacing: 0.01em;
+}
+
+.json-key-label {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  font-size: 0.98em;
+  line-height: 1.2;
+}
+
+.json-key-label--index,
+.json-key-label--root {
+  color: color-mix(in srgb, var(--text) 78%, var(--muted) 22%);
+ }
+
+.json-key-input {
+  width: min(220px, 100%);
+  max-width: 38vw;
 }
 
 .json-key-input,
@@ -1131,25 +1304,28 @@ button.icon-only svg {
 .json-type-select,
 .json-bool-select {
   border: 1px solid var(--border);
-  background: var(--button-bg);
+  background: color-mix(in srgb, var(--button-bg) 72%, var(--surface) 28%);
   color: var(--text);
-  border-radius: 8px;
-  min-height: 26px;
-  padding: 3px 7px;
+  border-radius: 10px;
+  min-height: 30px;
+  padding: 5px 9px;
   font-family: inherit;
-  font-size: 0.92em;
+  font-size: 0.88em;
   line-height: inherit;
   font-weight: 650;
-}
-
-.json-key-input {
-  width: 160px;
-  max-width: 36vw;
+  min-width: 0;
 }
 
 .json-value-input {
   flex: 1;
-  min-width: 120px;
+  min-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.json-value-input:focus {
+  text-overflow: clip;
 }
 
 .json-label {
@@ -1162,28 +1338,109 @@ button.icon-only svg {
 .json-badge {
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 0.78em;
+  padding: 2px 9px;
+  font-size: 0.72em;
   line-height: inherit;
   font-weight: 850;
-  color: var(--muted);
+  color: color-mix(in srgb, var(--muted) 92%, var(--text) 8%);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
 }
 
 .json-children {
-  margin-top: calc(6px + (var(--json-block-gap) * 0.45));
+  position: relative;
+  margin-top: calc(8px + (var(--json-block-gap) * 0.45));
+  margin-left: 12px;
+  padding-left: 18px;
   display: flex;
   flex-direction: column;
   gap: calc(6px + var(--json-block-gap));
 }
 
+.json-children::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 8px;
+  width: 1px;
+  background: color-mix(in srgb, var(--border) 68%, transparent);
+}
+
+.json-node--active-ancestor > .json-children::before,
+.json-node--selected > .json-children::before {
+  background: color-mix(in srgb, var(--focus-ring) 42%, transparent);
+}
+
+.json-row--container:hover,
+.json-row--leaf:hover {
+  border-color: color-mix(in srgb, var(--focus-ring) 35%, var(--border) 65%);
+}
+
+.json-row--active-ancestor {
+  border-color: color-mix(in srgb, var(--focus-ring) 28%, var(--border) 72%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-tint-soft) 48%, transparent), transparent 88%),
+    color-mix(in srgb, var(--history-bg) 82%, var(--surface) 18%);
+}
+
 .json-row.is-selected {
   border-color: var(--focus-ring);
-  box-shadow: 0 0 0 2px var(--surface-tint-soft);
+  box-shadow:
+    0 0 0 2px var(--surface-tint-soft),
+    0 8px 18px color-mix(in srgb, var(--surface-tint-soft) 38%, transparent);
+  transform: translateY(-1px);
+}
+
+.json-row.is-selected .json-row-actions--secondary,
+.json-row:hover .json-row-actions--secondary,
+.json-row:focus-within .json-row-actions--secondary {
+  opacity: 1;
+}
+
+.json-action-button {
+  min-height: 28px;
+  padding-inline: 10px;
+  font-size: 0.82em;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.json-toggle:focus-visible,
+.json-key-input:focus-visible,
+.json-value-input:focus-visible,
+.json-type-select:focus-visible,
+.json-bool-select:focus-visible,
+.json-action-button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.json-value-preview {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.9em;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @media (max-width: 1150px) {
   .json-layout {
     grid-template-columns: 1fr;
+  }
+
+  .json-splitter {
+    display: none !important;
+  }
+
+  .json-row-main--leaf {
+    align-items: stretch;
+  }
+
+  .json-row-editor {
+    min-width: 0;
+    flex-basis: 100%;
   }
 }
 

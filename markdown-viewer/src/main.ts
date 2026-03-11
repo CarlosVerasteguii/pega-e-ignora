@@ -143,6 +143,7 @@ const AUTOSAVE_STORAGE_KEY = "markdown-viewer.autosaveScratch";
 const DOCUMENT_MODE_STORAGE_KEY = "markdown-viewer.documentMode";
 const JSON_TREE_VISIBLE_STORAGE_KEY = "markdown-viewer.jsonTreeVisible";
 const JSON_WRAP_LINES_STORAGE_KEY = "markdown-viewer.jsonWrapLines";
+const JSON_TREE_WIDTH_STORAGE_KEY = "markdown-viewer.jsonTreePaneWidth";
 const MIN_WORKSPACE_ZOOM = 0.8;
 const MAX_WORKSPACE_ZOOM = 1.8;
 const WORKSPACE_ZOOM_STEP = 0.05;
@@ -1492,6 +1493,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   const jsonTreeEl = document.querySelector<HTMLElement>("#json-tree");
   const jsonTreePaneEl = document.querySelector<HTMLElement>("#json-tree-pane");
   const jsonLayoutEl = document.querySelector<HTMLElement>("#json-layout");
+  const jsonSplitterEl = document.querySelector<HTMLElement>("#json-splitter");
   const jsonParseStatusEl = document.querySelector<HTMLElement>("#json-parse-status");
   const jsonEditorWrapEl = document.querySelector<HTMLElement>(".json-editor");
   const btnJsonPretty = document.querySelector<HTMLButtonElement>("#btn-json-pretty");
@@ -1557,6 +1559,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     !jsonTreeEl ||
     !jsonTreePaneEl ||
     !jsonLayoutEl ||
+    !jsonSplitterEl ||
     !jsonParseStatusEl ||
     !jsonEditorWrapEl ||
     !btnJsonPretty ||
@@ -1682,8 +1685,26 @@ window.addEventListener("DOMContentLoaded", async () => {
     window.localStorage.setItem(JSON_WRAP_LINES_STORAGE_KEY, enabled ? "1" : "0");
   };
 
+  const JSON_TREE_WIDTH_DEFAULT = 38;
+  const JSON_TREE_WIDTH_MIN = 25;
+  const JSON_TREE_WIDTH_MAX = 60;
+  const JSON_TREE_WIDTH_KEYBOARD_STEP = 2;
+  const jsonSplitterCompactMedia = window.matchMedia("(max-width: 1150px)");
+
+  const readJsonTreePaneWidth = (): number => {
+    const raw = Number(window.localStorage.getItem(JSON_TREE_WIDTH_STORAGE_KEY));
+    if (!Number.isFinite(raw)) return JSON_TREE_WIDTH_DEFAULT;
+    return clampNumber(raw, JSON_TREE_WIDTH_MIN, JSON_TREE_WIDTH_MAX);
+  };
+
+  const writeJsonTreePaneWidth = (widthPercent: number) => {
+    window.localStorage.setItem(JSON_TREE_WIDTH_STORAGE_KEY, widthPercent.toFixed(1));
+  };
+
   let jsonTreeVisible = readJsonTreeVisible();
   let jsonWrapLines = readJsonWrapLines();
+  let jsonTreePaneWidth = readJsonTreePaneWidth();
+  let jsonSplitterPointerId: number | null = null;
 
   sidebarSections = createSidebarSections({
     root: sidebarEl,
@@ -1699,6 +1720,39 @@ window.addEventListener("DOMContentLoaded", async () => {
     sidebarSections?.setVisible("outline", activeDocumentMode === "markdown" || jsonTreeVisible);
   };
 
+  const updateJsonSplitterState = () => {
+    const enabled = jsonTreeVisible && !jsonSplitterCompactMedia.matches;
+    jsonSplitterEl.hidden = !enabled;
+    jsonSplitterEl.tabIndex = enabled ? 0 : -1;
+    jsonSplitterEl.setAttribute("aria-hidden", enabled ? "false" : "true");
+    jsonSplitterEl.setAttribute("aria-valuenow", String(Math.round(jsonTreePaneWidth)));
+    const valueText = `${Math.round(jsonTreePaneWidth)}% del ancho para Árbol JSON`;
+    jsonSplitterEl.setAttribute("aria-valuetext", valueText);
+  };
+
+  const applyJsonTreePaneWidth = (widthPercent: number, persist = false) => {
+    jsonTreePaneWidth = clampNumber(widthPercent, JSON_TREE_WIDTH_MIN, JSON_TREE_WIDTH_MAX);
+    jsonLayoutEl.style.setProperty("--json-tree-pane-width", `${jsonTreePaneWidth}%`);
+    updateJsonSplitterState();
+    if (persist) writeJsonTreePaneWidth(jsonTreePaneWidth);
+  };
+
+  const setJsonSplitterDragging = (dragging: boolean) => {
+    jsonSplitterEl.dataset.dragging = dragging ? "true" : "false";
+    document.body.style.cursor = dragging ? "col-resize" : "";
+    document.body.style.userSelect = dragging ? "none" : "";
+  };
+
+  const resizeJsonTreePaneFromPointer = (clientX: number, persist = false) => {
+    if (!jsonTreeVisible || jsonSplitterCompactMedia.matches) return;
+    const rect = jsonLayoutEl.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const splitterSize = jsonSplitterEl.getBoundingClientRect().width || 12;
+    const treeWidthPx = rect.right - clientX;
+    const widthPercent = (treeWidthPx / Math.max(rect.width - splitterSize, 1)) * 100;
+    applyJsonTreePaneWidth(widthPercent, persist);
+  };
+
   const applyJsonTreeVisible = (visible: boolean) => {
     jsonTreeVisible = visible;
     jsonLayoutEl.dataset.tree = visible ? "shown" : "hidden";
@@ -1708,6 +1762,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     btnJsonTreeToggle.title = label;
     btnJsonTreeToggle.setAttribute("aria-label", label);
     jsonWorkspaceTreeApi?.setTreeVisible(visible);
+    updateJsonSplitterState();
     syncOutlineSectionVisibility();
     renderOutline();
   };
@@ -1722,6 +1777,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     btnJsonWrapToggle.setAttribute("aria-label", label);
   };
 
+  applyJsonTreePaneWidth(jsonTreePaneWidth);
   applyJsonTreeVisible(jsonTreeVisible);
   applyJsonWrapLines(jsonWrapLines);
 
@@ -1738,6 +1794,61 @@ window.addEventListener("DOMContentLoaded", async () => {
     const msg = next ? "Ajuste de línea activado" : "Ajuste de línea desactivado";
     updateStatus(msg);
     notify({ kind: "info", message: msg });
+  });
+
+  jsonSplitterCompactMedia.addEventListener("change", () => {
+    updateJsonSplitterState();
+  });
+
+  jsonSplitterEl.addEventListener("pointerdown", (event) => {
+    if (!jsonTreeVisible || jsonSplitterCompactMedia.matches) return;
+    jsonSplitterPointerId = event.pointerId;
+    jsonSplitterEl.setPointerCapture(event.pointerId);
+    setJsonSplitterDragging(true);
+    event.preventDefault();
+  });
+
+  jsonSplitterEl.addEventListener("pointermove", (event) => {
+    if (jsonSplitterPointerId !== event.pointerId) return;
+    resizeJsonTreePaneFromPointer(event.clientX, false);
+  });
+
+  jsonSplitterEl.addEventListener("pointerup", (event) => {
+    if (jsonSplitterPointerId !== event.pointerId) return;
+    resizeJsonTreePaneFromPointer(event.clientX, true);
+    jsonSplitterEl.releasePointerCapture(event.pointerId);
+    jsonSplitterPointerId = null;
+    setJsonSplitterDragging(false);
+  });
+
+  jsonSplitterEl.addEventListener("pointercancel", (event) => {
+    if (jsonSplitterPointerId !== event.pointerId) return;
+    jsonSplitterPointerId = null;
+    setJsonSplitterDragging(false);
+  });
+
+  jsonSplitterEl.addEventListener("keydown", (event) => {
+    if (!jsonTreeVisible || jsonSplitterCompactMedia.matches) return;
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      applyJsonTreePaneWidth(jsonTreePaneWidth + JSON_TREE_WIDTH_KEYBOARD_STEP, true);
+      return;
+    }
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      applyJsonTreePaneWidth(jsonTreePaneWidth - JSON_TREE_WIDTH_KEYBOARD_STEP, true);
+      return;
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      applyJsonTreePaneWidth(JSON_TREE_WIDTH_MIN, true);
+      return;
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      applyJsonTreePaneWidth(JSON_TREE_WIDTH_MAX, true);
+      return;
+    }
   });
 
   const readAutosaveEnabled = (): boolean => {
@@ -1923,6 +2034,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         UI_PREF_KEYS.visualFamily,
         JSON_TREE_VISIBLE_STORAGE_KEY,
         JSON_WRAP_LINES_STORAGE_KEY,
+        JSON_TREE_WIDTH_STORAGE_KEY,
       ]) {
         window.localStorage.removeItem(key);
       }
