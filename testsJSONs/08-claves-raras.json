@@ -1,0 +1,14 @@
+{
+  "con espacios": "valor",
+  "ruta/archivo": "notes/demo.json",
+  "punto.final.": true,
+  "": "clave vacia",
+  "emoji🔧": "tool",
+  "ñandú": "ave",
+  "clave:con:dos puntos": 123,
+  "array raro": [
+    {
+      "sub clave": "ok"
+    }
+  ]
+}

@@ -1,5 +1,4 @@
-import { exists, mkdir, readDir, writeTextFile } from "@tauri-apps/plugin-fs";
-import { join } from "@tauri-apps/api/path";
+import { exists, join, mkdir, readDir, writeTextFile } from "../ui/desktopApi";
 
 type TreeNode =
   | {

@@ -1,0 +1,345 @@
+# Checklist Maestra de QA Extrema
+
+## Seccion A. Instalacion, arranque y app residente
+
+- [ ] QA-001 Instalar la app desde el `setup.exe` y confirmar que el instalador termina sin errores visibles.
+- [ ] QA-002 Instalar la app desde el `msi` y confirmar que termina sin errores visibles.
+- [ ] QA-003 Abrir la app recien instalada desde el acceso directo y verificar que muestra la ventana principal.
+- [ ] QA-004 Abrir la app desde el binario release directo y verificar que la ventana principal aparece correctamente.
+- [ ] QA-005 Confirmar que la app crea o reutiliza su carpeta de trabajo en `Documentos/Pega e Ignora`.
+- [ ] QA-006 Abrir la app con `runtime.json` ausente y confirmar que usa defaults razonables.
+- [ ] QA-007 Abrir la app con `runtime.json` vacio y confirmar que no se rompe en arranque.
+- [ ] QA-008 Abrir la app con `runtime.json` corrupto y confirmar que entra en fallback seguro.
+- [ ] QA-009 Verificar que la app no crea dos procesos residentes al lanzar una segunda instancia.
+- [ ] QA-010 Lanzar una segunda instancia con la app oculta y confirmar que reaparece la existente.
+- [ ] QA-011 Lanzar una segunda instancia con la app visible y confirmar que solo enfoca la existente.
+- [ ] QA-012 Cerrar con `X` cuando `Cerrar a bandeja` esta activado y confirmar que el proceso sigue vivo.
+- [ ] QA-013 Cerrar con `X` cuando `Cerrar a bandeja` esta desactivado y confirmar que la app sale por completo.
+- [ ] QA-014 Pulsar `Alt+F4` con `Cerrar a bandeja` activado y confirmar que oculta en vez de morir.
+- [ ] QA-015 Pulsar `Alt+F4` con `Cerrar a bandeja` desactivado y confirmar que realmente termina.
+- [ ] QA-016 Verificar que aparece icono en bandeja despues del arranque normal.
+- [ ] QA-017 Hacer clic izquierdo en bandeja y confirmar que alterna mostrar/ocultar.
+- [ ] QA-018 Usar la opcion de bandeja "Mostrar / ocultar" y confirmar el mismo resultado.
+- [ ] QA-019 Usar la opcion de bandeja "Salir completamente" y confirmar que el proceso muere.
+- [ ] QA-020 Confirmar que el atajo global por defecto muestra la app cuando esta oculta.
+- [ ] QA-021 Confirmar que el atajo global por defecto oculta la app cuando esta visible.
+- [ ] QA-022 Cambiar el atajo global a otra combinacion valida y verificar que entra en vigor al instante.
+- [ ] QA-023 Intentar guardar un atajo invalido y confirmar que se rechaza con mensaje claro.
+- [ ] QA-024 Intentar guardar un atajo ocupado por otra app y confirmar rollback al anterior.
+- [ ] QA-025 Restablecer el atajo por defecto y confirmar que vuelve a funcionar.
+- [ ] QA-026 Reiniciar la app y comprobar que conserva el atajo global personalizado.
+- [ ] QA-027 Activar "Iniciar con Windows" y verificar que la preferencia persiste tras reinicio de app.
+- [ ] QA-028 Desactivar "Iniciar con Windows" y verificar que la preferencia persiste tras reinicio de app.
+- [ ] QA-029 Simular o validar arranque por autostart y confirmar que la app inicia oculta.
+- [ ] QA-030 Confirmar que el atajo global funciona incluso cuando la app fue lanzada oculta por autostart.
+- [ ] QA-031 Confirmar que la app vuelve a mostrarse desde bandeja aun si inicio oculta por autostart.
+- [ ] QA-032 Verificar que no quedan iconos fantasma de bandeja despues de salir correctamente.
+- [ ] QA-033 Verificar que no quedan procesos zombies despues de usar "Salir completamente".
+- [ ] QA-034 Confirmar que la app sigue respondiendo al ocultar y mostrar muchas veces seguidas.
+- [ ] QA-035 Confirmar que ocultar/mostrar no resetea el documento abierto ni el estado dirty.
+- [ ] QA-036 Verificar que la app abre bien si Windows tarda en montar `Documentos`.
+- [ ] QA-037 Abrir la app con internet desconectado y confirmar que lo residente sigue funcionando.
+- [ ] QA-038 Abrir la app sin privilegios de admin y confirmar que todas las funciones base siguen operando.
+- [ ] QA-039 Verificar que la app no se queda invisible permanentemente en un arranque normal.
+- [ ] QA-040 Confirmar que los textos de settings explican correctamente la diferencia entre ocultar y salir.
+
+## Seccion B. Archivos, vault, historial y sesion
+
+- [ ] QA-041 Abrir la app por primera vez sin `scratch.md` y confirmar que aparece contenido inicial.
+- [ ] QA-042 Editar un documento nuevo y confirmar que se crea `scratch.md`.
+- [ ] QA-043 Editar un documento Markdown sin guardar y reiniciar la app para verificar recuperacion desde scratch.
+- [ ] QA-044 Editar un documento JSON sin guardar y reiniciar la app para verificar recuperacion desde scratch.
+- [ ] QA-045 Guardar un archivo nuevo Markdown dentro del vault y confirmar que aparece en historial.
+- [ ] QA-046 Guardar un archivo nuevo JSON dentro del vault y confirmar que aparece en historial.
+- [ ] QA-047 Abrir un archivo guardado desde historial y confirmar que rehidrata el contenido correcto.
+- [ ] QA-048 Abrir un archivo guardado desde `Ctrl+O` y confirmar que el metadata cambia al nombre correcto.
+- [ ] QA-049 Usar "Guardar como" en Markdown y confirmar que propone extension correcta.
+- [ ] QA-050 Usar "Guardar como" en JSON y confirmar que propone extension correcta.
+- [ ] QA-051 Intentar guardar Markdown con extension JSON y confirmar que lo bloquea.
+- [ ] QA-052 Intentar guardar JSON con extension Markdown y confirmar que lo bloquea.
+- [ ] QA-053 Intentar guardar fuera del vault y confirmar que se rechaza con mensaje claro.
+- [ ] QA-054 Confirmar que guardar manual limpia el estado dirty del documento actual.
+- [ ] QA-055 Confirmar que el autosave de sesion no pisa automaticamente el archivo real abierto.
+- [ ] QA-056 Confirmar que el historial ordena por ultima apertura o guardado reciente.
+- [ ] QA-057 Eliminar un archivo desde historial y confirmar que desaparece del listado.
+- [ ] QA-058 Eliminar desde historial el archivo actualmente abierto y confirmar que el editor entra en estado recuperable.
+- [ ] QA-059 Reiniciar la app con `Restaurar sesion anterior` activado y confirmar que vuelve al ultimo contexto.
+- [ ] QA-060 Reiniciar la app con `Restaurar sesion anterior` desactivado y confirmar que no reabre la sesion previa.
+- [ ] QA-061 Abrir un archivo existente, mover el scroll, cerrar y reabrir para confirmar restauracion de scroll.
+- [ ] QA-062 Abrir JSON, seleccionar un nodo en arbol, cerrar y reabrir para confirmar restauracion de seleccion.
+- [ ] QA-063 Editar JSON, mover el cursor, cerrar y reabrir para confirmar restauracion de rango de seleccion.
+- [ ] QA-064 Verificar que `session.json` se actualiza despues de cambios de documento.
+- [ ] QA-065 Verificar que `session.json` se actualiza despues de ocultar a bandeja.
+- [ ] QA-066 Verificar que `session.json` se actualiza despues de guardado manual.
+- [ ] QA-067 Verificar que `session.json` se actualiza despues de autosave a scratch.
+- [ ] QA-068 Abrir un archivo, borrarlo fuera de la app y reabrir la app para confirmar recuperacion del borrador.
+- [ ] QA-069 Confirmar que al faltar el archivo previo la app avisa que recupero desde scratch.
+- [ ] QA-070 Crear `session.json` con version desconocida y confirmar fallback seguro.
+- [ ] QA-071 Crear `session.json` con valores nulos o incompletos y confirmar fallback sin crash.
+- [ ] QA-072 Confirmar que cambiar entre Markdown y JSON no deja referencias rotas de `currentPath`.
+- [ ] QA-073 Verificar que un documento nuevo sin ruta muestra `(sin archivo)` en metadatos.
+- [ ] QA-074 Confirmar que el titulo inferido para guardado usa contenido del documento y no una cadena vacia.
+- [ ] QA-075 Verificar que renombrar manualmente un archivo fuera de la app no corrompe el historial existente.
+- [ ] QA-076 Confirmar que el historial no duplica entradas para el mismo path.
+- [ ] QA-077 Confirmar que el historial sigue operando bien con 40 entradas.
+- [ ] QA-078 Confirmar que al superar el limite el historial recorta las mas antiguas.
+- [ ] QA-079 Verificar que abrir el explorador del vault lista Markdown y JSON validos.
+- [ ] QA-080 Verificar que la app sigue abriendo aunque el historial este corrupto o vacio.
+
+## Seccion C. Editor y render Markdown
+
+- [ ] QA-081 Abrir un Markdown basico y confirmar render de H1, H2, H3 y parrafos.
+- [ ] QA-082 Verificar que el outline detecta correctamente headings anidados.
+- [ ] QA-083 Hacer clic en el outline y confirmar que navega a la seccion esperada.
+- [ ] QA-084 Confirmar que listas ordenadas conservan numeracion correcta tras editar.
+- [ ] QA-085 Confirmar que listas no ordenadas no rompen espaciado ni sangria.
+- [ ] QA-086 Confirmar que checklists Markdown se renderizan con consistencia.
+- [ ] QA-087 Confirmar que bloques de codigo se muestran con estilo consistente.
+- [ ] QA-088 Confirmar que quotes se renderizan sin desbordar el layout.
+- [ ] QA-089 Confirmar que tablas no rompen el contenedor en documentos medianos.
+- [ ] QA-090 Confirmar que una tabla larga con muchas columnas sigue siendo usable.
+- [ ] QA-091 Confirmar que lineas horizontales se ven en claro y oscuro.
+- [ ] QA-092 Confirmar que texto con unicode y acentos se guarda y reabre sin corrupcion.
+- [ ] QA-093 Confirmar que pegar Markdown desde otra app mantiene formato razonable.
+- [ ] QA-094 Confirmar que `Ctrl+A` selecciona todo correctamente dentro del editor.
+- [ ] QA-095 Confirmar que `Ctrl+F` abre la UI de busqueda y encuentra coincidencias reales.
+- [ ] QA-096 Confirmar que `Ctrl+H` abre reemplazo y modifica el contenido esperado.
+- [ ] QA-097 Confirmar que buscar texto inexistente no rompe la UI.
+- [ ] QA-098 Confirmar que reemplazar varias coincidencias conserva estado dirty y outline.
+- [ ] QA-099 Confirmar que el toggle de ortografia activa y desactiva subrayados.
+- [ ] QA-100 Confirmar que el zoom por `Ctrl+rueda` aplica sin romper el layout.
+- [ ] QA-101 Confirmar que el modo lectura oculta sidebar y luego vuelve correctamente.
+- [ ] QA-102 Confirmar que el tema claro no pierde contraste en el editor Markdown.
+- [ ] QA-103 Confirmar que el tema oscuro no pierde contraste en el editor Markdown.
+- [ ] QA-104 Confirmar que links `http`, `https`, `mailto` y `tel` se abren solo con `Ctrl+click`.
+- [ ] QA-105 Confirmar que links inseguros tipo `javascript:` se bloquean y notifican.
+- [ ] QA-106 Confirmar que links inseguros pegados se sanitizan al guardar o al cargar.
+- [ ] QA-107 Abrir un documento Markdown muy largo y confirmar que sigue siendo navegable.
+- [ ] QA-108 Confirmar que editar cerca del inicio no desplaza violentamente el scroll.
+- [ ] QA-109 Confirmar que editar cerca del final no rompe el render ni el caret.
+- [ ] QA-110 Confirmar que deshacer y rehacer repetidas veces no corrompen el documento.
+- [ ] QA-111 Confirmar que un documento con HTML embebido no ejecuta scripts peligrosos.
+- [ ] QA-112 Confirmar que frontmatter mixto no rompe el render general.
+- [ ] QA-113 Confirmar que caracteres escapados (`\\*`, `\\_`, `\\#`) se muestran como esperado.
+- [ ] QA-114 Confirmar que el outline responde bien a cambios rapidos de headings.
+- [ ] QA-115 Confirmar que el render no pierde sincronizacion despues de muchos pegados seguidos.
+- [ ] QA-116 Confirmar que el editor conserva foco despues de toggles de preferencias relevantes.
+- [ ] QA-117 Confirmar que abrir un fixture Markdown complejo no dispara errores visibles en consola.
+- [ ] QA-118 Confirmar que el guardado de Markdown no elimina contenido no peligroso legitimo.
+- [ ] QA-119 Confirmar que las notificaciones de guardado/apertura son coherentes y no invasivas.
+- [ ] QA-120 Confirmar que cambiar a JSON y volver a Markdown deja intacto el contenido Markdown.
+
+## Seccion D. Editor JSON, arbol y validacion
+
+- [ ] QA-121 Abrir un JSON basico y confirmar que el modo activo cambia a JSON.
+- [ ] QA-122 Confirmar que el editor JSON muestra objeto raiz y estructura correcta.
+- [ ] QA-123 Confirmar que el arbol JSON marca correctamente nodos objeto y arreglo.
+- [ ] QA-124 Confirmar que seleccionar un nodo en el arbol actualiza el estado de seleccion.
+- [ ] QA-125 Confirmar que seleccionar en el texto sincroniza el nodo resaltado cuando aplica.
+- [ ] QA-126 Confirmar que JSON valido habilita guardado.
+- [ ] QA-127 Confirmar que JSON invalido bloquea guardado y lo comunica.
+- [ ] QA-128 Confirmar que `Pretty` formatea con 2 espacios.
+- [ ] QA-129 Confirmar que `Minify` compacta sin alterar datos.
+- [ ] QA-130 Confirmar que `Pretty` en JSON invalido no destruye el texto del usuario.
+- [ ] QA-131 Confirmar que `Minify` en JSON invalido no destruye el texto del usuario.
+- [ ] QA-132 Abrir un arreglo en nivel raiz y confirmar que la app lo maneja bien.
+- [ ] QA-133 Abrir un top-level primitive JSON valido y confirmar comportamiento razonable.
+- [ ] QA-134 Abrir `null` como documento JSON y confirmar que no colapsa la vista.
+- [ ] QA-135 Confirmar que strings con emojis y acentos se renderizan sin corrupcion.
+- [ ] QA-136 Confirmar que caracteres escapados (`\\n`, `\\t`, `\\uXXXX`) se conservan correctamente.
+- [ ] QA-137 Confirmar que numeros muy grandes no causan ruptura visual inmediata.
+- [ ] QA-138 Confirmar que arrays largos siguen siendo navegables en editor y arbol.
+- [ ] QA-139 Confirmar que un objeto profundamente anidado no rompe la UI.
+- [ ] QA-140 Confirmar que colapsar y expandir nodos largos no desincroniza el panel.
+- [ ] QA-141 Confirmar que el ancho del panel de arbol puede ajustarse y se recuerda.
+- [ ] QA-142 Confirmar que ocultar el arbol JSON deja el editor usable.
+- [ ] QA-143 Confirmar que mostrar el arbol despues de ocultarlo restaura correctamente el layout.
+- [ ] QA-144 Confirmar que activar wrap de lineas en JSON funciona en lineas largas.
+- [ ] QA-145 Confirmar que desactivar wrap mantiene scroll horizontal usable.
+- [ ] QA-146 Confirmar que mover el scroll del editor JSON actualiza la sesion sin errores.
+- [ ] QA-147 Confirmar que cambiar la seleccion del texto JSON actualiza la sesion sin errores.
+- [ ] QA-148 Confirmar que abrir un JSON con claves duplicadas no hace crash al viewer.
+- [ ] QA-149 Confirmar que abrir un JSON malformado desde archivo no bloquea la edicion posterior.
+- [ ] QA-150 Confirmar que editar un JSON grande no congela la app por completo.
+- [ ] QA-151 Confirmar que el metadato de la cabecera indica `JSON` cuando toca.
+- [ ] QA-152 Confirmar que cambiar a Markdown desde un JSON invalido no deja errores colgando.
+- [ ] QA-153 Confirmar que guardar un JSON valido y reabrirlo conserva el formato esperado.
+- [ ] QA-154 Confirmar que guardar un JSON minificado y reabrirlo conserva el contenido exacto.
+- [ ] QA-155 Confirmar que abrir un fixture con arrays y objetos mixtos no rompe el outline JSON.
+- [ ] QA-156 Confirmar que el path seleccionado de un nodo largo se muestra sin truncado destructivo.
+- [ ] QA-157 Confirmar que el caret vuelve a una posicion coherente tras formatear.
+- [ ] QA-158 Confirmar que reabrir sesion con JSON restaura nodo, scroll y rango cuando es posible.
+- [ ] QA-159 Confirmar que borrar todo el JSON deja el estado invalido pero no rompe botones laterales.
+- [ ] QA-160 Confirmar que volver a escribir JSON valido recupera completamente las acciones bloqueadas.
+
+## Seccion E. Preferencias, apariencia, accesibilidad y ventana
+
+- [ ] QA-161 Abrir settings y confirmar que todos los grupos tienen copy en espanol.
+- [ ] QA-162 Confirmar que el panel de settings atrapa foco al abrir.
+- [ ] QA-163 Confirmar que `Escape` cierra settings y devuelve el foco al control anterior.
+- [ ] QA-164 Confirmar que `Tab` recorre solo elementos visibles del panel de settings.
+- [ ] QA-165 Confirmar que `Shift+Tab` tambien respeta el loop de foco.
+- [ ] QA-166 Confirmar que los botones toggle reflejan su estado con `aria-pressed`.
+- [ ] QA-167 Cambiar tema claro/oscuro y confirmar persistencia tras reinicio.
+- [ ] QA-168 Cambiar familia visual y confirmar persistencia tras reinicio.
+- [ ] QA-169 Cambiar perfil de tipografia y confirmar persistencia tras reinicio.
+- [ ] QA-170 Cambiar tamano de tipografia Markdown y confirmar que aplica en tiempo real.
+- [ ] QA-171 Cambiar tamano de tipografia JSON y confirmar que aplica en tiempo real.
+- [ ] QA-172 Activar reducir movimiento y confirmar que las animaciones disminuyen o desaparecen.
+- [ ] QA-173 Desactivar reducir movimiento y confirmar que vuelven las animaciones previstas.
+- [ ] QA-174 Cambiar posicion de toasts y confirmar que los mensajes salen donde corresponde.
+- [ ] QA-175 Cambiar perfil de toasts y confirmar diferencias de duracion visibles.
+- [ ] QA-176 Confirmar que los toasts de error se pueden cerrar por teclado.
+- [ ] QA-177 Confirmar que los toasts informativos no tapan controles criticos demasiado tiempo.
+- [ ] QA-178 Confirmar que el contraste de botones activos es suficiente en tema claro.
+- [ ] QA-179 Confirmar que el contraste de botones activos es suficiente en tema oscuro.
+- [ ] QA-180 Confirmar que el foco visible nunca desaparece en controles interactivos.
+- [ ] QA-181 Confirmar que los iconos inline siguen alineados en distintas escalas de DPI.
+- [ ] QA-182 Mover la ventana, cerrar y reabrir para confirmar restauracion de posicion.
+- [ ] QA-183 Redimensionar la ventana, cerrar y reabrir para confirmar restauracion de tamano.
+- [ ] QA-184 Maximizar la ventana, cerrar y reabrir para confirmar restauracion del estado maximizado.
+- [ ] QA-185 Restaurar desde una posicion en segundo monitor y confirmar comportamiento razonable.
+- [ ] QA-186 Confirmar que una ventana fuera de pantalla vuelve a un lugar visible si cambia el entorno.
+- [ ] QA-187 Confirmar que el sidebar sigue usable en ventanas pequenas dentro del minimo soportado.
+- [ ] QA-188 Confirmar que la UI no explota visualmente cerca del ancho minimo soportado.
+- [ ] QA-189 Confirmar que la UI no pierde controles al aumentar mucho el tamano de ventana.
+- [ ] QA-190 Confirmar que el estado de zoom del workspace persiste tras reinicio.
+- [ ] QA-191 Confirmar que spellcheck persiste tras reinicio.
+- [ ] QA-192 Confirmar que el modo lectura persiste si asi se espera.
+- [ ] QA-193 Confirmar que el panel JSON tree visible/oculto persiste.
+- [ ] QA-194 Confirmar que el ancho del panel JSON persiste.
+- [ ] QA-195 Confirmar que las preferencias siguen cargando aunque haya claves viejas en localStorage.
+- [ ] QA-196 Usar boton de reset de preferencias y confirmar que vuelve a defaults razonables.
+- [ ] QA-197 Confirmar que el reset no borra indebidamente runtime settings nativos si no corresponde.
+- [ ] QA-198 Confirmar que el reset no borra archivos del vault.
+- [ ] QA-199 Confirmar que abrir/cerrar settings muchas veces no degrada foco ni overlay.
+- [ ] QA-200 Confirmar que la app sigue accesible por teclado completo sin usar mouse.
+
+## Seccion F. Comandos, teclado y productividad
+
+- [ ] QA-201 Confirmar que `Ctrl+K` abre la paleta de comandos.
+- [ ] QA-202 Confirmar que la paleta cierra con `Escape`.
+- [ ] QA-203 Confirmar que la paleta filtra acciones por texto parcial.
+- [ ] QA-204 Confirmar que la paleta encuentra acciones por keywords.
+- [ ] QA-205 Confirmar que la paleta ejecuta `Nuevo documento`.
+- [ ] QA-206 Confirmar que la paleta ejecuta `Abrir`.
+- [ ] QA-207 Confirmar que la paleta ejecuta `Guardar`.
+- [ ] QA-208 Confirmar que la paleta ejecuta `Guardar como`.
+- [ ] QA-209 Confirmar que la paleta ejecuta `Abrir carpeta del vault`.
+- [ ] QA-210 Confirmar que la paleta ejecuta `Actualizar historial`.
+- [ ] QA-211 Confirmar que la paleta ejecuta `Mostrar / ocultar app`.
+- [ ] QA-212 Confirmar que la paleta ejecuta `Salir completamente`.
+- [ ] QA-213 Confirmar que `Ctrl+N` crea documento nuevo si se aceptan descartes.
+- [ ] QA-214 Confirmar que `Ctrl+N` pide confirmacion si hay cambios sin guardar.
+- [ ] QA-215 Confirmar que `Ctrl+O` abre selector de archivos.
+- [ ] QA-216 Confirmar que `Ctrl+S` guarda el archivo actual cuando existe ruta.
+- [ ] QA-217 Confirmar que `Ctrl+S` sin ruta previa deriva a flujo de guardado correcto.
+- [ ] QA-218 Confirmar que `Ctrl+Shift+S` abre siempre `Guardar como`.
+- [ ] QA-219 Confirmar que `Ctrl+F` funciona tanto en Markdown como en JSON.
+- [ ] QA-220 Confirmar que `Ctrl+H` funciona tanto en Markdown como en JSON cuando aplica.
+- [ ] QA-221 Confirmar que `Ctrl+rueda` no hace zoom accidental cuando el foco esta en otro contexto.
+- [ ] QA-222 Confirmar que los botones de toolbar disparan las mismas acciones que sus shortcuts.
+- [ ] QA-223 Confirmar que los estados disabled de botones reflejan el estado real del documento.
+- [ ] QA-224 Confirmar que `Guardar` se bloquea mientras hay operacion incompatible en curso.
+- [ ] QA-225 Confirmar que el editor conserva productividad tras abrir/cerrar paleta varias veces.
+- [ ] QA-226 Confirmar que cerrar settings no deja shortcuts globales internos inactivos.
+- [ ] QA-227 Confirmar que la paleta no ejecuta acciones duplicadas por doble Enter.
+- [ ] QA-228 Confirmar que el focus vuelve al editor despues de usar acciones de paleta no modales.
+- [ ] QA-229 Confirmar que la paleta no interfiere con el atajo global del sistema.
+- [ ] QA-230 Confirmar que el buscador no rompe el render Markdown despues de varias busquedas.
+- [ ] QA-231 Confirmar que reemplazar en JSON no invalida el caret ni la seleccion mas de lo razonable.
+- [ ] QA-232 Confirmar que abrir explorador del vault y cancelar no deja estados colgando.
+- [ ] QA-233 Confirmar que abrir dialogos del sistema varias veces seguidas no deja la app congelada.
+- [ ] QA-234 Confirmar que los metadatos superiores cambian al instante despues de acciones de teclado.
+- [ ] QA-235 Confirmar que los shortcuts siguen funcionando despues de cambiar tema y settings.
+- [ ] QA-236 Confirmar que los shortcuts siguen funcionando despues de ocultar y remostrar la app.
+- [ ] QA-237 Confirmar que el editor recibe foco correcto al alternar entre Markdown y JSON por comandos.
+- [ ] QA-238 Confirmar que la accion de formatear JSON no ejecuta en modo Markdown.
+- [ ] QA-239 Confirmar que la accion de minificar JSON no ejecuta en modo Markdown.
+- [ ] QA-240 Confirmar que las acciones improcedentes notifican sin causar confusiones ni crashes.
+
+## Seccion G. Errores, recuperacion, seguridad y datos extranos
+
+- [ ] QA-241 Intentar abrir un path externo al vault y confirmar rechazo seguro.
+- [ ] QA-242 Intentar guardar en un directorio protegido y confirmar mensaje de error claro.
+- [ ] QA-243 Simular permisos insuficientes en el vault y confirmar fallo controlado.
+- [ ] QA-244 Corromper `history.json` y confirmar que la app sigue arrancando.
+- [ ] QA-245 Corromper `session.json` y confirmar que la app sigue arrancando.
+- [ ] QA-246 Corromper `scratch.md` y confirmar que la app no se cae al leerlo.
+- [ ] QA-247 Abrir Markdown con links inseguros persistidos y confirmar bloqueo al cargar.
+- [ ] QA-248 Pegar HTML malicioso y confirmar que no ejecuta scripts.
+- [ ] QA-249 Abrir JSON malformado con caracteres truncados y confirmar que no crashea.
+- [ ] QA-250 Abrir un archivo muy pequeno vacio y confirmar comportamiento coherente.
+- [ ] QA-251 Abrir un archivo enorme y confirmar que la app no muere sin aviso.
+- [ ] QA-252 Abrir un archivo con finales de linea mezclados y confirmar guardado razonable.
+- [ ] QA-253 Abrir un archivo con BOM y confirmar que el contenido no se corrompe.
+- [ ] QA-254 Abrir un archivo con nombre muy largo dentro del vault y confirmar que la UI lo maneja.
+- [ ] QA-255 Abrir un archivo con caracteres raros en nombre y confirmar que no rompe historial.
+- [ ] QA-256 Abrir un archivo con mayusculas/minusculas distintas y confirmar que el historial no duplica rarezas.
+- [ ] QA-257 Renombrar manualmente el vault entre ejecuciones y confirmar error claro o recuperacion segura.
+- [ ] QA-258 Dejar el disco casi lleno y confirmar que el guardado fallido se comunica correctamente.
+- [ ] QA-259 Forzar cierre del proceso y confirmar que la siguiente apertura intenta recuperar lo posible.
+- [ ] QA-260 Confirmar que errores de dialogo del sistema no dejan la app en loop.
+- [ ] QA-261 Confirmar que errores al abrir archivos muestran mensajes en espanol.
+- [ ] QA-262 Confirmar que errores al guardar archivos muestran mensajes en espanol.
+- [ ] QA-263 Confirmar que borrar un archivo inexistente desde historial no rompe la app.
+- [ ] QA-264 Confirmar que un archivo eliminado entre `exists` y `read` se maneja sin crash.
+- [ ] QA-265 Confirmar que la app no borra archivos fuera del vault aunque el historial apunte alli.
+- [ ] QA-266 Confirmar que datos con `null`, vacios y arrays anidados no rompen la UI JSON.
+- [ ] QA-267 Confirmar que un runtime setting inesperado no inutiliza el panel de configuracion.
+- [ ] QA-268 Confirmar que un shortcut guardado manualmente en formato raro cae a default seguro.
+- [ ] QA-269 Confirmar que cambiar repetidamente settings de runtime no deja inconsistencias visuales.
+- [ ] QA-270 Confirmar que cerrar desde tray mientras hay cambios recientes no destruye el ultimo estado recuperable.
+- [ ] QA-271 Confirmar que abrir app tras apagado inesperado no deja la sesion en estado imposible.
+- [ ] QA-272 Confirmar que la app no genera loops de notificaciones ante un mismo error recurrente.
+- [ ] QA-273 Confirmar que la app no escribe archivos temporales basura fuera de sus rutas esperadas.
+- [ ] QA-274 Confirmar que nombres de archivos con emoji no rompen el dialogo ni el historial.
+- [ ] QA-275 Confirmar que texto RTL o mezcla de idiomas no revienta el render basico.
+- [ ] QA-276 Confirmar que JSON con claves vacias (`""`) no colapsa el arbol.
+- [ ] QA-277 Confirmar que JSON con arrays profundamente recursivos no hace desaparecer controles.
+- [ ] QA-278 Confirmar que un documento con miles de lineas mantiene capacidad de guardarse.
+- [ ] QA-279 Confirmar que la app sigue estable tras una secuencia larga de errores recuperables.
+- [ ] QA-280 Confirmar que un error no deja bloqueado permanentemente el boton de guardar.
+
+## Seccion H. Performance, estres, empaquetado y regresion extrema
+
+- [ ] QA-281 Abrir y cerrar la app 20 veces seguidas para buscar degradacion de arranque.
+- [ ] QA-282 Ocultar y mostrar la app 50 veces seguidas para buscar fugas o estados colgados.
+- [ ] QA-283 Cambiar entre Markdown y JSON 50 veces seguidas para buscar regresiones de modo.
+- [ ] QA-284 Abrir y cerrar settings 30 veces seguidas para buscar fugas visuales o de foco.
+- [ ] QA-285 Ejecutar `Pretty` y `Minify` muchas veces en un JSON mediano y confirmar estabilidad.
+- [ ] QA-286 Hacer 100 ediciones pequenas y confirmar que la app sigue respondiendo.
+- [ ] QA-287 Pegar contenido Markdown grande varias veces y confirmar que el render se vuelve inutil.
+- [ ] QA-288 Pegar JSON grande varias veces y confirmar que el editor sigue siendo usable.
+- [ ] QA-289 Confirmar que el CPU no queda alto permanentemente en reposo despues de mucho uso.
+- [ ] QA-290 Confirmar que la memoria no crece sin freno en una sesion larga.
+- [ ] QA-291 Confirmar que el historial grande no hace lenta la apertura del sidebar.
+- [ ] QA-292 Confirmar que el outline grande no hace lenta la navegacion del documento.
+- [ ] QA-293 Confirmar que el arbol JSON grande no hace imposible seleccionar nodos.
+- [ ] QA-294 Confirmar que abrir la app instalada desde el menu inicio funciona despues del primer reinicio.
+- [ ] QA-295 Confirmar que el acceso directo del escritorio abre la misma instancia residente.
+- [ ] QA-296 Confirmar que desinstalar la app remueve archivos del programa sin tocar el vault del usuario.
+- [ ] QA-297 Confirmar que reinstalar sobre una version previa conserva datos del vault y settings relevantes.
+- [ ] QA-298 Confirmar que update manual por reinstalacion no rompe runtime settings.
+- [ ] QA-299 Confirmar que update manual por reinstalacion no rompe session restore.
+- [ ] QA-300 Confirmar que el setup funciona con Windows Defender activo sin mensajes raros inesperados.
+- [ ] QA-301 Confirmar que el MSI y el NSIS dejan una app funcionalmente equivalente.
+- [ ] QA-302 Confirmar que el binario release directo se comporta razonablemente aunque no pase por instalador.
+- [ ] QA-303 Confirmar que el atajo global sigue funcionando despues de varias horas con la app en segundo plano.
+- [ ] QA-304 Confirmar que el autostart no dispara una ventana visible por flicker al iniciar Windows.
+- [ ] QA-305 Confirmar que la ventana restaurada no reaparece minimizada de forma incorrecta tras reinicio.
+- [ ] QA-306 Confirmar que el viewer mantiene integridad visual con escalado de Windows 125%.
+- [ ] QA-307 Confirmar que el viewer mantiene integridad visual con escalado de Windows 150%.
+- [ ] QA-308 Confirmar que el viewer mantiene integridad visual con escalado de Windows 200%.
+- [ ] QA-309 Confirmar que el editor sigue usable con resolucion baja o ventana compacta prolongada.
+- [ ] QA-310 Confirmar que el editor sigue usable en resoluciones altas y monitores grandes.
+- [ ] QA-311 Confirmar que no hay regresion del flujo Markdown tradicional despues de meter funciones residentes.
+- [ ] QA-312 Confirmar que no hay regresion del flujo JSON tradicional despues de meter funciones residentes.
+- [ ] QA-313 Confirmar que no hay regresion del guardado dentro del vault despues de meter runtime settings.
+- [ ] QA-314 Confirmar que no hay regresion del historial despues de meter session restore.
+- [ ] QA-315 Confirmar que no hay regresion de los toasts despues de meter la nueva seccion de settings.
+- [ ] QA-316 Confirmar que no hay regresion de focus management despues de meter acciones de app en paleta.
+- [ ] QA-317 Confirmar que la app instalada sigue abriendo fixtures Markdown y JSON ubicados en el repo local.
+- [ ] QA-318 Confirmar que una corrida completa de los fixtures no deja archivos corruptos en el vault.
+- [ ] QA-319 Confirmar que una corrida completa no cambia preferencias del usuario sin explicacion.
+- [ ] QA-320 Confirmar que, tras pasar los casos criticos, la app esta realmente lista para una ronda de empaquetado final.

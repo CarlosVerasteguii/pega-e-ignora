@@ -1,0 +1,18 @@
+{
+  "app": {
+    "nombre": "Pega e Ignora",
+    "tema": "oscuro",
+    "familiaVisual": "grafito"
+  },
+  "runtime": {
+    "globalShortcut": "Ctrl+Alt+M",
+    "closeToTray": true,
+    "restoreLastSession": true,
+    "launchOnStartup": true
+  },
+  "sesion": {
+    "documentMode": "json",
+    "currentPath": "C:\\Users\\veras\\Documents\\Pega e Ignora\\testsJSONs\\07-config-realista.json",
+    "isDirty": false
+  }
+}

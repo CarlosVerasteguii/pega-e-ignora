@@ -1,0 +1,12 @@
+{
+  "saludo": "Hola, mundo 👋",
+  "acentos": "canción, acción, información, pingüino",
+  "japones": "こんにちは",
+  "arabigo": "مرحبا",
+  "escapes": {
+    "saltoLinea": "Linea 1\nLinea 2\nLinea 3",
+    "tabulacion": "columna1\tcolumna2\tcolumna3",
+    "comillas": "Ella dijo: \"todo bien\"",
+    "unicode": "\u2603 \u2764 \u2713"
+  }
+}

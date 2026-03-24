@@ -1,0 +1,15 @@
+{
+  "titulo": "Caso basico",
+  "activo": true,
+  "version": 1,
+  "tags": [
+    "smoke",
+    "json",
+    "viewer"
+  ],
+  "meta": {
+    "autor": "Veras",
+    "origen": "testsJSONs",
+    "comentario": "Fixture simple para una apertura rapida"
+  }
+}

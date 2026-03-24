@@ -2533,6 +2533,13 @@ button.icon-only svg {
   background: linear-gradient(180deg, var(--panel), var(--panel-2));
 }
 
+.settings-help {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
 .settings-field-row {
   display: flex;
   align-items: center;
@@ -2582,6 +2589,12 @@ button.icon-only svg {
 .settings-choice[aria-checked="true"]:hover {
   border-color: var(--focus-ring);
   background: rgb(var(--accent-1-rgb) / 0.16);
+}
+
+.settings-choice[aria-pressed="true"] {
+  border-color: var(--focus-ring);
+  background: rgb(var(--accent-1-rgb) / 0.12);
+  box-shadow: 0 0 0 2px var(--surface-tint-soft);
 }
 
 .settings-toggle[aria-pressed="true"] {

@@ -1,0 +1,9 @@
+{
+  "modo": "primero",
+  "modo": "segundo",
+  "flags": {
+    "activo": true,
+    "activo": false
+  },
+  "nota": "Sirve para observar que hace el parser cuando hay claves repetidas"
+}

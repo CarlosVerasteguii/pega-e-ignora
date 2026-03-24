@@ -1,0 +1,23 @@
+[
+  {
+    "id": 1,
+    "nombre": "uno",
+    "ok": true
+  },
+  {
+    "id": 2,
+    "nombre": "dos",
+    "ok": false,
+    "detalles": {
+      "motivo": null,
+      "peso": 3.14
+    }
+  },
+  [
+    "subarreglo",
+    99,
+    false
+  ],
+  null,
+  "valor suelto"
+]

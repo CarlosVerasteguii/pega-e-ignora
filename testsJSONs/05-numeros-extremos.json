@@ -1,0 +1,15 @@
+{
+  "cero": 0,
+  "negativo": -42,
+  "decimal": 12345.6789,
+  "cientificaPequena": 1.2e-8,
+  "cientificaGrande": 9.99e+21,
+  "enteroGrande": 9007199254740993,
+  "muchosDecimales": 3.14159265358979323846,
+  "coleccion": [
+    -0.000001,
+    999999999,
+    6.022e23,
+    2.718281828459045
+  ]
+}

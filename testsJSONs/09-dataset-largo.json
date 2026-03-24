@@ -1,0 +1,25 @@
+{
+  "proyecto": "qa-extrema",
+  "registros": [
+    { "id": 1, "estado": "nuevo", "puntaje": 81, "owner": "ana" },
+    { "id": 2, "estado": "nuevo", "puntaje": 77, "owner": "luis" },
+    { "id": 3, "estado": "ok", "puntaje": 99, "owner": "maria" },
+    { "id": 4, "estado": "ok", "puntaje": 74, "owner": "diego" },
+    { "id": 5, "estado": "warning", "puntaje": 61, "owner": "sara" },
+    { "id": 6, "estado": "nuevo", "puntaje": 88, "owner": "ana" },
+    { "id": 7, "estado": "ok", "puntaje": 91, "owner": "luis" },
+    { "id": 8, "estado": "warning", "puntaje": 58, "owner": "maria" },
+    { "id": 9, "estado": "ok", "puntaje": 95, "owner": "diego" },
+    { "id": 10, "estado": "nuevo", "puntaje": 73, "owner": "sara" },
+    { "id": 11, "estado": "ok", "puntaje": 84, "owner": "ana" },
+    { "id": 12, "estado": "warning", "puntaje": 54, "owner": "luis" },
+    { "id": 13, "estado": "nuevo", "puntaje": 80, "owner": "maria" },
+    { "id": 14, "estado": "ok", "puntaje": 97, "owner": "diego" },
+    { "id": 15, "estado": "warning", "puntaje": 49, "owner": "sara" },
+    { "id": 16, "estado": "ok", "puntaje": 89, "owner": "ana" },
+    { "id": 17, "estado": "nuevo", "puntaje": 76, "owner": "luis" },
+    { "id": 18, "estado": "ok", "puntaje": 93, "owner": "maria" },
+    { "id": 19, "estado": "warning", "puntaje": 57, "owner": "diego" },
+    { "id": 20, "estado": "ok", "puntaje": 90, "owner": "sara" }
+  ]
+}

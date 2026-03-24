@@ -1,0 +1,13 @@
+{
+  "cadenaVacia": "",
+  "objetoVacio": {},
+  "arregloVacio": [],
+  "nulo": null,
+  "espacios": "   ",
+  "estructura": {
+    "a": null,
+    "b": [],
+    "c": {},
+    "d": ""
+  }
+}

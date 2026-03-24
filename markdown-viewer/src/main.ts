@@ -1,12 +1,25 @@
 import "@toast-ui/editor/dist/toastui-editor.css";
 import "./styles.css";
 
-import { join, documentDir } from "@tauri-apps/api/path";
-import { exists, mkdir, readTextFile, remove, rename, writeTextFile } from "@tauri-apps/plugin-fs";
-import { confirm, message, open as dialogOpen, save as dialogSave } from "@tauri-apps/plugin-dialog";
-import { openPath } from "@tauri-apps/plugin-opener";
 import { createJsonWorkspace, type JsonWorkspace } from "./features/jsonWorkspace";
 import { createCommandPalette, type CommandPaletteAction } from "./ui/commandPalette";
+import {
+  confirm,
+  documentDir,
+  exists,
+  getCurrentWindow,
+  isTauriRuntime,
+  join,
+  message,
+  mkdir,
+  open as dialogOpen,
+  openPath,
+  readTextFile,
+  remove,
+  rename,
+  save as dialogSave,
+  writeTextFile,
+} from "./ui/desktopApi";
 import { createFindReplace } from "./ui/findReplace";
 import { createSidebarSections, type SidebarSectionsApi } from "./ui/sidebarSections";
 import {
@@ -15,6 +28,24 @@ import {
   writeSidebarSectionExpandedState,
 } from "./ui/sidebarSectionState";
 import { createToastHost, type ToastKind, type ToastPosition, type ToastShowOptions } from "./ui/toast";
+import {
+  DEFAULT_RUNTIME_SETTINGS,
+  exitApplication as exitDesktopApplication,
+  getRuntimeSettings,
+  humanizeShortcut,
+  isValidShortcutString,
+  keyboardEventToShortcut,
+  normalizeRuntimeSettings,
+  toggleMainWindow as toggleDesktopMainWindow,
+  updateRuntimeSettings,
+  type RuntimeSettings,
+} from "./ui/runtimeSettings";
+import {
+  createSessionState,
+  normalizeSessionState,
+  resolveSessionRestorePlan,
+  type SessionState,
+} from "./ui/sessionState";
 import {
   UI_PREF_KEYS,
   DEFAULT_TYPOGRAPHY_SETTINGS,
@@ -44,6 +75,7 @@ type VaultPaths = {
   notesDir: string;
   scratchPath: string;
   historyPath: string;
+  sessionPath: string;
 };
 
 type AppTheme = "light" | "dark";
@@ -1434,7 +1466,8 @@ async function getVaultPaths(): Promise<VaultPaths> {
   const notesDir = await join(vaultDir, "notes");
   const scratchPath = await join(vaultDir, "scratch.md");
   const historyPath = await join(vaultDir, "history.json");
-  return { vaultDir, notesDir, scratchPath, historyPath };
+  const sessionPath = await join(vaultDir, "session.json");
+  return { vaultDir, notesDir, scratchPath, historyPath, sessionPath };
 }
 
 async function ensureVault(vault: VaultPaths): Promise<void> {
@@ -1464,6 +1497,20 @@ async function loadHistory(vault: VaultPaths): Promise<HistoryItem[]> {
 
 async function saveHistory(vault: VaultPaths, history: HistoryItem[]): Promise<void> {
   await writeTextFile(vault.historyPath, JSON.stringify(history, null, 2));
+}
+
+async function readSessionState(vault: VaultPaths): Promise<SessionState | null> {
+  if (!(await exists(vault.sessionPath))) return null;
+  try {
+    const raw = await readTextFile(vault.sessionPath);
+    return normalizeSessionState(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+async function writeSessionState(vault: VaultPaths, session: SessionState): Promise<void> {
+  await writeTextFile(vault.sessionPath, JSON.stringify(session, null, 2));
 }
 
 function setText(el: HTMLElement | null, text: string): void {
@@ -1532,6 +1579,14 @@ window.addEventListener("DOMContentLoaded", async () => {
   const btnExploreVault = document.querySelector<HTMLButtonElement>("#btn-explore-vault");
   const vaultNotesPathEl = document.querySelector<HTMLElement>("#vault-notes-path");
   const btnAutosave = document.querySelector<HTMLButtonElement>("#btn-autosave");
+  const btnCloseToTray = document.querySelector<HTMLButtonElement>("#btn-close-to-tray");
+  const btnRestoreSession = document.querySelector<HTMLButtonElement>("#btn-restore-session");
+  const btnLaunchOnStartup = document.querySelector<HTMLButtonElement>("#btn-launch-on-startup");
+  const btnShortcutCapture = document.querySelector<HTMLButtonElement>("#btn-shortcut-capture");
+  const btnShortcutReset = document.querySelector<HTMLButtonElement>("#btn-shortcut-reset");
+  const runtimeShortcutSelectedName = document.querySelector<HTMLElement>("#runtime-shortcut-selected-name");
+  const runtimeShortcutStatus = document.querySelector<HTMLElement>("#runtime-shortcut-status");
+  const shortcutGlobalDisplay = document.querySelector<HTMLElement>("#shortcut-global-display");
   const btnToastProfileBalanced = document.querySelector<HTMLButtonElement>("#btn-toast-profile-balanced");
   const btnToastProfileStandard = document.querySelector<HTMLButtonElement>("#btn-toast-profile-standard");
   const toastProfileSelectedName = document.querySelector<HTMLElement>("#toast-profile-selected-name");
@@ -1597,6 +1652,14 @@ window.addEventListener("DOMContentLoaded", async () => {
     !btnExploreVault ||
     !vaultNotesPathEl ||
     !btnAutosave ||
+    !btnCloseToTray ||
+    !btnRestoreSession ||
+    !btnLaunchOnStartup ||
+    !btnShortcutCapture ||
+    !btnShortcutReset ||
+    !runtimeShortcutSelectedName ||
+    !runtimeShortcutStatus ||
+    !shortcutGlobalDisplay ||
     !btnToastProfileBalanced ||
     !btnToastProfileStandard ||
     !toastProfileSelectedName ||
@@ -1614,6 +1677,11 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
 
   const initialUiPreferences = readUiPreferences();
+  const appWindow = getCurrentWindow();
+  const desktopRuntimeAvailable = isTauriRuntime();
+  let runtimeSettings = await getRuntimeSettings();
+  let shortcutCaptureActive = false;
+  let runtimeShortcutStatusMessage = "Listo";
   let toastProfile: ToastProfile = initialUiPreferences.toastProfile;
   let toastPosition: ToastPosition = initialUiPreferences.toastPosition;
   let reduceMotionPreference = initialUiPreferences.reduceMotion;
@@ -1656,6 +1724,46 @@ window.addEventListener("DOMContentLoaded", async () => {
       durationMs,
     });
   };
+
+  const updateRuntimeToggleButton = (button: HTMLButtonElement, label: string, enabled: boolean) => {
+    button.setAttribute("aria-pressed", enabled ? "true" : "false");
+    setText(button.querySelector("span"), `${label}: ${enabled ? "Sí" : "No"}`);
+  };
+
+  const syncRuntimeSettingsControls = () => {
+    updateRuntimeToggleButton(btnCloseToTray, "Cerrar a bandeja", runtimeSettings.closeToTray);
+    updateRuntimeToggleButton(btnRestoreSession, "Reanudar sesión", runtimeSettings.restoreLastSession);
+    updateRuntimeToggleButton(btnLaunchOnStartup, "Iniciar con Windows", runtimeSettings.launchOnStartup);
+    runtimeShortcutSelectedName.textContent = humanizeShortcut(runtimeSettings.globalShortcut);
+    shortcutGlobalDisplay.textContent = humanizeShortcut(runtimeSettings.globalShortcut);
+    runtimeShortcutStatus.textContent = shortcutCaptureActive ? "Presiona tu combinación…" : runtimeShortcutStatusMessage;
+    btnShortcutCapture.setAttribute("aria-pressed", shortcutCaptureActive ? "true" : "false");
+    setText(btnShortcutCapture.querySelector("span"), shortcutCaptureActive ? "Escuchando atajo…" : "Grabar atajo…");
+  };
+
+  const applyRuntimeSettings = async (
+    next: RuntimeSettings,
+    options: { announceMessage?: string; successMessage?: string } = {},
+  ): Promise<boolean> => {
+    try {
+      runtimeSettings = await updateRuntimeSettings(next);
+      syncRuntimeSettingsControls();
+      if (options.successMessage) {
+        updateStatus(options.successMessage);
+        notify({ kind: "info", message: options.successMessage });
+      }
+      return true;
+    } catch (error) {
+      runtimeSettings = normalizeRuntimeSettings(runtimeSettings);
+      syncRuntimeSettingsControls();
+      const detail = error instanceof Error ? error.message : String(error);
+      updateStatus(options.announceMessage ?? "No pude aplicar la configuración.");
+      notify({ kind: "error", message: `${options.announceMessage ?? "No pude aplicar la configuración."} ${detail}` });
+      return false;
+    }
+  };
+
+  syncRuntimeSettingsControls();
 
   let activeDocumentMode: DocumentMode = getInitialDocumentMode();
   let onDocumentModeChanged = () => {};
@@ -2003,7 +2111,96 @@ window.addEventListener("DOMContentLoaded", async () => {
     const msg = autosaveEnabled ? "Auto-guardado activado" : "Auto-guardado desactivado";
     updateStatus(msg);
     notify({ kind: "info", message: msg });
+    scheduleSessionStateSave();
   });
+
+  const stopShortcutCapture = (statusText = "Listo") => {
+    shortcutCaptureActive = false;
+    runtimeShortcutStatusMessage = statusText;
+    runtimeShortcutStatus.textContent = statusText;
+    syncRuntimeSettingsControls();
+  };
+
+  btnCloseToTray.addEventListener("click", () => {
+    void applyRuntimeSettings(
+      { ...runtimeSettings, closeToTray: !runtimeSettings.closeToTray },
+      {
+        announceMessage: "No pude actualizar el cierre a bandeja.",
+        successMessage: `Cerrar a bandeja: ${!runtimeSettings.closeToTray ? "Sí" : "No"}`,
+      },
+    );
+  });
+
+  btnRestoreSession.addEventListener("click", () => {
+    void applyRuntimeSettings(
+      { ...runtimeSettings, restoreLastSession: !runtimeSettings.restoreLastSession },
+      {
+        announceMessage: "No pude actualizar la reanudación de sesión.",
+        successMessage: `Reanudar sesión: ${!runtimeSettings.restoreLastSession ? "Sí" : "No"}`,
+      },
+    );
+  });
+
+  btnLaunchOnStartup.addEventListener("click", () => {
+    void applyRuntimeSettings(
+      { ...runtimeSettings, launchOnStartup: !runtimeSettings.launchOnStartup },
+      {
+        announceMessage: "No pude actualizar el inicio con Windows.",
+        successMessage: `Iniciar con Windows: ${!runtimeSettings.launchOnStartup ? "Sí" : "No"}`,
+      },
+    );
+  });
+
+  btnShortcutCapture.addEventListener("click", () => {
+    shortcutCaptureActive = !shortcutCaptureActive;
+    runtimeShortcutStatusMessage = shortcutCaptureActive ? "Presiona tu combinación…" : "Listo";
+    runtimeShortcutStatus.textContent = runtimeShortcutStatusMessage;
+    syncRuntimeSettingsControls();
+  });
+
+  btnShortcutReset.addEventListener("click", () => {
+    shortcutCaptureActive = false;
+    void applyRuntimeSettings(
+      { ...runtimeSettings, globalShortcut: DEFAULT_RUNTIME_SETTINGS.globalShortcut },
+      {
+        announceMessage: "No pude restablecer el atajo global.",
+        successMessage: `Atajo global: ${humanizeShortcut(DEFAULT_RUNTIME_SETTINGS.globalShortcut)}`,
+      },
+    );
+  });
+
+  window.addEventListener(
+    "keydown",
+    (event) => {
+      if (!shortcutCaptureActive) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === "Escape") {
+        stopShortcutCapture("Captura cancelada");
+        return;
+      }
+      const shortcut = keyboardEventToShortcut(event);
+      if (!shortcut || !isValidShortcutString(shortcut)) {
+        runtimeShortcutStatusMessage = "Usa Ctrl, Alt o Shift junto con otra tecla.";
+        runtimeShortcutStatus.textContent = runtimeShortcutStatusMessage;
+        return;
+      }
+
+      runtimeShortcutStatusMessage = `Probando ${humanizeShortcut(shortcut)}…`;
+      runtimeShortcutStatus.textContent = runtimeShortcutStatusMessage;
+      void (async () => {
+        const applied = await applyRuntimeSettings(
+          { ...runtimeSettings, globalShortcut: shortcut },
+          {
+            announceMessage: "No pude actualizar el atajo global.",
+            successMessage: `Atajo global: ${humanizeShortcut(shortcut)}`,
+          },
+        );
+        stopShortcutCapture(applied ? "Listo" : "Elige otra combinación");
+      })();
+    },
+    true,
+  );
 
   btnResetPreferences.addEventListener("click", () => {
     void (async () => {
@@ -2635,7 +2832,13 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (change.path) {
       updateStatus(`Nodo: ${change.path}`);
     }
+    scheduleSessionStateSave(180);
   });
+
+  jsonTextEditorEl.addEventListener("select", () => scheduleSessionStateSave(180));
+  jsonTextEditorEl.addEventListener("keyup", () => scheduleSessionStateSave(180));
+  jsonTextEditorEl.addEventListener("click", () => scheduleSessionStateSave(180));
+  jsonTextEditorEl.addEventListener("scroll", () => scheduleSessionStateSave(180), { passive: true });
 
   jsonTreeEl.addEventListener(
     "click",
@@ -2828,6 +3031,63 @@ window.addEventListener("DOMContentLoaded", async () => {
     const inferred = modeFromPath(path);
     if (!inferred) return false;
     return inferred === mode;
+  };
+
+  let sessionWriteTimer: number | null = null;
+  let restoreUiTimer: number | null = null;
+
+  const collectSessionState = (): SessionState =>
+    createSessionState({
+      currentPath,
+      documentMode: activeDocumentMode,
+      isDirty,
+      restoreSource: isDirty || !currentPath ? "scratch" : "file",
+      workspaceScrollTop: workspaceEl.scrollTop,
+      jsonSelectedPath: jsonWorkspace.getSelectedPath(),
+      jsonSelectionStart: activeDocumentMode === "json" ? jsonTextEditorEl.selectionStart : null,
+      jsonSelectionEnd: activeDocumentMode === "json" ? jsonTextEditorEl.selectionEnd : null,
+      updatedAt: Date.now(),
+    });
+
+  const persistSessionStateNow = async () => {
+    try {
+      const next = collectSessionState();
+      lastSessionState = next;
+      await writeSessionState(vault, next);
+    } catch {
+      // best-effort
+    }
+  };
+
+  const scheduleSessionStateSave = (delayMs = 220) => {
+    if (sessionWriteTimer !== null) {
+      window.clearTimeout(sessionWriteTimer);
+    }
+    sessionWriteTimer = window.setTimeout(() => {
+      sessionWriteTimer = null;
+      void persistSessionStateNow();
+    }, delayMs);
+  };
+
+  const scheduleRestoreUiState = () => {
+    if (restoreUiTimer !== null) {
+      window.clearTimeout(restoreUiTimer);
+    }
+    restoreUiTimer = window.setTimeout(() => {
+      restoreUiTimer = null;
+      if (pendingRestoreWorkspaceScrollTop > 0) {
+        workspaceEl.scrollTop = pendingRestoreWorkspaceScrollTop;
+      }
+      if (pendingRestoreJsonSelection && activeDocumentMode === "json") {
+        const { path, start, end } = pendingRestoreJsonSelection;
+        if (path) {
+          jsonWorkspace.selectPath(path, { source: "program", reveal: true, focusTarget: "none" });
+        }
+        if (start !== null) {
+          jsonTextEditorEl.setSelectionRange(start, end ?? start);
+        }
+      }
+    }, 60);
   };
 
   let workspaceZoom = 1;
@@ -3120,10 +3380,13 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   setText(vaultNotesPathEl, vault.notesDir);
 
+  let lastSessionState: SessionState | null = await readSessionState(vault);
   let currentPath: string | null = null;
   let history: HistoryItem[] = await loadHistory(vault);
   let isDirty = false;
   let saveInProgress = false;
+  let pendingRestoreWorkspaceScrollTop = 0;
+  let pendingRestoreJsonSelection: { path: string | null; start: number | null; end: number | null } | null = null;
 
   const normalizeForCompare = (p: string) => p.replace(/\\/g, "/").toLowerCase().replace(/\/+$/, "");
   const vaultDirNorm = normalizeForCompare(vault.vaultDir);
@@ -3144,6 +3407,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     const modeLabel = activeDocumentMode === "json" ? "JSON" : "Markdown";
     setText(workspaceMetaEl, `${fileLabel} • ${modeLabel}${isDirty ? " • editando" : ""}`);
     syncFileButtons();
+    scheduleSessionStateSave();
   };
 
   onDocumentModeChanged = () => {
@@ -3533,6 +3797,41 @@ window.addEventListener("DOMContentLoaded", async () => {
     await openNote(selected);
   };
 
+  let exitingApplication = false;
+
+  const toggleMainWindowVisibility = async () => {
+    await persistSessionStateNow();
+    if (!desktopRuntimeAvailable) {
+      updateStatus("Mostrar u ocultar solo funciona en la app de escritorio.");
+      notify({ kind: "warning", message: "Mostrar u ocultar solo funciona en la app de escritorio." });
+      return;
+    }
+    await toggleDesktopMainWindow();
+  };
+
+  const exitApplication = async () => {
+    if (!desktopRuntimeAvailable) {
+      updateStatus("Salir completamente solo funciona en la app de escritorio.");
+      notify({ kind: "warning", message: "Salir completamente solo funciona en la app de escritorio." });
+      return;
+    }
+    exitingApplication = true;
+    await persistSessionStateNow();
+    await exitDesktopApplication();
+  };
+
+  if (appWindow) {
+    void appWindow.onCloseRequested(async (event) => {
+      if (exitingApplication || !runtimeSettings.closeToTray) return;
+      event.preventDefault();
+      await toggleMainWindowVisibility();
+    });
+  }
+
+  window.addEventListener("beforeunload", () => {
+    void persistSessionStateNow();
+  });
+
   const paletteActions: CommandPaletteAction[] = [
     {
       id: "file.new",
@@ -3561,6 +3860,20 @@ window.addEventListener("DOMContentLoaded", async () => {
     },
     { id: "vault.folder", title: "Abrir carpeta del vault", subtitle: "Abrir en Explorer", group: "Vault" },
     { id: "history.refresh", title: "Actualizar historial", group: "Vault", keywords: ["recientes"] },
+    {
+      id: "app.toggleWindow",
+      title: "Mostrar / ocultar app",
+      subtitle: "Alternar ventana principal",
+      group: "App",
+      keywords: ["bandeja", "ocultar", "mostrar"],
+    },
+    {
+      id: "app.exit",
+      title: "Salir completamente",
+      subtitle: "Cerrar la app residente",
+      group: "App",
+      keywords: ["cerrar", "salir", "terminar"],
+    },
     { id: "view.theme", title: "Cambiar tema", subtitle: "Claro / Oscuro", group: "Vista" },
     { id: "view.modeMarkdown", title: "Vista Markdown", subtitle: "Activar editor Markdown", group: "Vista" },
     { id: "view.modeJson", title: "Vista JSON", subtitle: "Activar editor JSON", group: "Vista" },
@@ -3684,6 +3997,18 @@ window.addEventListener("DOMContentLoaded", async () => {
           renderHistory();
           updateStatus("Historial actualizado");
           notify({ kind: "info", message: "Historial actualizado" });
+          return;
+        }
+
+        if (actionId === "app.toggleWindow") {
+          closeSettings();
+          await toggleMainWindowVisibility();
+          return;
+        }
+
+        if (actionId === "app.exit") {
+          closeSettings();
+          await exitApplication();
           return;
         }
 
@@ -4002,6 +4327,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     },
     { passive: false },
   );
+  workspaceEl.addEventListener("scroll", () => scheduleSessionStateSave(180), { passive: true });
 
   btnRefreshHistory.addEventListener("click", async () => {
     history = await loadHistory(vault);
@@ -4027,24 +4353,79 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Bootstrap initial content
-  if (await exists(vault.scratchPath)) {
+  // Bootstrap initial content / session
+  const hasScratch = await exists(vault.scratchPath);
+  let sessionFileExists = false;
+  if (lastSessionState?.currentPath) {
     try {
-      const scratchContent = await readTextFile(vault.scratchPath);
-      if (activeDocumentMode === "json") {
+      sessionFileExists = await exists(lastSessionState.currentPath);
+    } catch {
+      sessionFileExists = false;
+    }
+  }
+
+  const restorePlan = resolveSessionRestorePlan({
+    restoreLastSession: runtimeSettings.restoreLastSession,
+    session: lastSessionState,
+    scratchExists: hasScratch,
+    currentFileExists: sessionFileExists,
+  });
+
+  const applyScratchContent = async (mode: DocumentMode) => {
+    try {
+      const scratchContent = hasScratch ? await readTextFile(vault.scratchPath) : "";
+      if (mode === "json") {
         jsonWorkspace.setText(scratchContent || "{}", false);
       } else {
         setEditorValue(scratchContent);
       }
     } catch {
-      if (activeDocumentMode === "json") {
+      if (mode === "json") {
         jsonWorkspace.setText("{}", false);
       } else {
         setEditorValue("");
       }
     }
+  };
+
+  if (lastSessionState) {
+    pendingRestoreWorkspaceScrollTop = lastSessionState.workspaceScrollTop;
+    pendingRestoreJsonSelection = {
+      path: lastSessionState.jsonSelectedPath,
+      start: lastSessionState.jsonSelectionStart,
+      end: lastSessionState.jsonSelectionEnd,
+    };
+  }
+
+  if (restorePlan.kind === "session-file") {
+    await openNote(restorePlan.session.currentPath ?? vault.scratchPath);
+    isDirty = restorePlan.session.isDirty;
+    updateMeta();
+  } else if (restorePlan.kind === "session-scratch") {
+    setActiveDocumentMode(restorePlan.session.documentMode);
+    await applyScratchContent(restorePlan.session.documentMode);
+    currentPath = restorePlan.session.currentPath;
+    isDirty = restorePlan.session.isDirty;
+    updateMeta();
+    renderOutline();
+    syncFileButtons();
+    if (restorePlan.session.currentPath && !sessionFileExists) {
+      notify({ kind: "warning", message: "Recuperé el borrador porque el archivo anterior ya no estaba disponible." });
+    } else {
+      notify({ kind: "info", message: "Sesión anterior recuperada." });
+    }
+  } else if (restorePlan.kind === "scratch") {
+    setActiveDocumentMode(lastSessionState?.documentMode ?? "markdown");
+    await applyScratchContent(lastSessionState?.documentMode ?? "markdown");
+    currentPath = null;
+    isDirty = false;
+    updateMeta();
+    renderOutline();
+    syncFileButtons();
   } else {
-    if (activeDocumentMode === "json") {
+    const starterMode = lastSessionState?.documentMode ?? "markdown";
+    setActiveDocumentMode(starterMode);
+    if (starterMode === "json") {
       jsonWorkspace.setText("{\n  \"nuevo\": true\n}", false);
     } else {
       setEditorValue(`# Pega e Ignora
@@ -4074,9 +4455,11 @@ console.log("Hola mundo")
   syncFileButtons();
   updateMeta();
   renderHistory();
+  scheduleRestoreUiState();
   if (activeDocumentMode === "json") {
     jsonWorkspace.focus();
   } else {
     editor.focus();
   }
+  await persistSessionStateNow();
 });

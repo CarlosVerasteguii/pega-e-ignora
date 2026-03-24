@@ -1,0 +1,6 @@
+Total messages: 3 (Errors: 1, Warnings: 0)
+Returning 1 messages for level "error"
+
+TypeError: Cannot read properties of undefined (reading 'metadata')
+    at getCurrentWindow (http://localhost:1420/node_modules/.vite/deps/@tauri-apps_api_window.js?v=3b3141f6:378:48)
+    at http://localhost:1420/src/main.ts:1375:21
